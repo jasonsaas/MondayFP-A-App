@@ -1,20 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { db } from '@/db';
 import { mondayBoards, budgetItems, actualTransactions, varianceAnalyses, varianceResults } from '@/db/schema/fpa';
 import { integrationSettings } from '@/db/schema/fpa';
 import { MondayClient } from '@/lib/monday-client';
 import { QuickBooksClient } from '@/lib/quickbooks-client';
 import { VarianceEngine } from '@/lib/variance-engine';
-import { eq, and, between } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
+    // Get user info from middleware-added headers
+    const userId = request.headers.get('x-user-id');
+    const organizationId = request.headers.get('x-organization-id');
 
-    if (!session?.user) {
+    if (!userId || !organizationId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -33,14 +32,14 @@ export async function POST(request: NextRequest) {
       db.select()
         .from(integrationSettings)
         .where(and(
-          eq(integrationSettings.userId, session.user.id),
+          eq(integrationSettings.userId, userId),
           eq(integrationSettings.provider, 'monday')
         ))
         .limit(1),
       db.select()
         .from(integrationSettings)
         .where(and(
-          eq(integrationSettings.userId, session.user.id),
+          eq(integrationSettings.userId, userId),
           eq(integrationSettings.provider, 'quickbooks')
         ))
         .limit(1)
@@ -109,7 +108,7 @@ export async function POST(request: NextRequest) {
       .insert(varianceAnalyses)
       .values({
         id: analysis.id,
-        userId: session.user.id,
+        userId,
         name: analysisName,
         boardId,
         analysisType: 'budget_vs_actual',

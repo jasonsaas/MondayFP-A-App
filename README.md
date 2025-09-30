@@ -1,24 +1,27 @@
 # Monday.com FP&A Variance Analyzer
 
-A Next.js application that integrates with Monday.com and QuickBooks to perform financial variance analysis, comparing budgets with actuals.
+A Next.js marketplace application that integrates Monday.com boards with QuickBooks for automated financial variance analysis.
 
 ## Features
 
+- **Monday OAuth 2.0**: Secure single sign-on with Monday.com workspace
+- **Multi-tenant Architecture**: Organization-based data isolation
 - **Monday.com Integration**: Fetch budget data from Monday.com boards
 - **QuickBooks Integration**: Pull actual transaction data from QuickBooks
 - **Variance Analysis Engine**: Calculate variances, identify trends, and generate actionable insights
+- **n8n Workflow Automation**: Webhook-based integration for automated syncing
 - **Modern UI**: Built with Vibe Design System (@vibe/core) and Tailwind CSS
 - **Real-time Analysis**: Run variance analyses on-demand with customizable date ranges
 
 ## Tech Stack
 
-- **Framework**: Next.js 14 with App Router
+- **Framework**: Next.js 15 with App Router
 - **Language**: TypeScript
 - **Database**: PostgreSQL with Drizzle ORM
-- **Authentication**: Better Auth
+- **Authentication**: Monday OAuth 2.0 + JWT sessions
 - **UI Components**: @vibe/core (Monday's design system) + shadcn/ui
-- **Integrations**: monday-sdk-js, intuit-oauth (QuickBooks)
-- **Deployment**: Vercel-ready
+- **Integrations**: monday-sdk-js, intuit-oauth (QuickBooks), n8n webhooks
+- **Deployment**: Vercel (app) + Railway (n8n) + Neon (database)
 
 ## Setup
 
@@ -32,9 +35,11 @@ cp .env.example .env.local
 
 Required variables:
 - `DATABASE_URL`: PostgreSQL connection string
-- `BETTER_AUTH_SECRET`: Random secret for authentication
-- `MONDAY_CLIENT_ID` & `MONDAY_CLIENT_SECRET`: Monday.com app credentials
-- `QUICKBOOKS_CLIENT_ID` & `QUICKBOOKS_CLIENT_SECRET`: QuickBooks app credentials
+- `JWT_SECRET`: Random secret for JWT session tokens
+- `MONDAY_CLIENT_ID` & `MONDAY_CLIENT_SECRET`: Monday.com OAuth app credentials
+- `MONDAY_REDIRECT_URI`: OAuth callback URL
+- `QUICKBOOKS_CLIENT_ID` & `QUICKBOOKS_CLIENT_SECRET`: QuickBooks OAuth app credentials
+- `N8N_WEBHOOK_SECRET`: Secret for n8n webhook authentication
 
 ### 2. Database Setup
 

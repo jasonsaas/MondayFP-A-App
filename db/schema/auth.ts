@@ -1,5 +1,20 @@
 import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
+export const organization = pgTable("organization", {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    mondayAccountId: text("monday_account_id").unique(),
+    mondayWorkspaceId: text("monday_workspace_id"),
+    slug: text("slug").notNull().unique(),
+    settings: text("settings"), // JSON string
+    createdAt: timestamp("created_at")
+        .$defaultFn(() => new Date())
+        .notNull(),
+    updatedAt: timestamp("updated_at")
+        .$defaultFn(() => new Date())
+        .notNull(),
+});
+
 export const user = pgTable("user", {
     id: text("id").primaryKey(),
     name: text("name").notNull(),
@@ -8,6 +23,10 @@ export const user = pgTable("user", {
         .$defaultFn(() => false)
         .notNull(),
     image: text("image"),
+    organizationId: text("organization_id")
+        .references(() => organization.id, { onDelete: "cascade" }),
+    mondayUserId: text("monday_user_id"),
+    role: text("role").default("member"), // "owner", "admin", "member"
     createdAt: timestamp("created_at")
         .$defaultFn(() => /* @__PURE__ */ new Date())
         .notNull(),

@@ -15,6 +15,13 @@
       "when": 1759199501412,
       "tag": "0001_lazy_titania",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1759203569660,
+      "tag": "0002_shiny_crusher_hogan",
+      "breakpoints": true
     }
   ]
 }
