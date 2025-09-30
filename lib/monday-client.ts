@@ -175,12 +175,162 @@ export class MondayClient {
           }
         }
       `;
-      
+
       const response = await this.monday.api(query);
       return response.data.me;
     } catch (error) {
       console.error('Error fetching user info:', error);
       throw new Error('Failed to fetch Monday.com user information');
+    }
+  }
+
+  async updateItemColumn(
+    boardId: string,
+    itemId: string,
+    columnId: string,
+    value: any
+  ): Promise<any> {
+    try {
+      const mutation = `
+        mutation($boardId: ID!, $itemId: ID!, $columnId: String!, $value: JSON!) {
+          change_column_value(
+            board_id: $boardId,
+            item_id: $itemId,
+            column_id: $columnId,
+            value: $value
+          ) {
+            id
+            name
+          }
+        }
+      `;
+
+      const variables = {
+        boardId,
+        itemId,
+        columnId,
+        value: JSON.stringify(value),
+      };
+
+      const response = await this.monday.api(mutation, { variables });
+      return response.data.change_column_value;
+    } catch (error) {
+      console.error('Error updating item column:', error);
+      throw new Error(`Failed to update column ${columnId} for item ${itemId}`);
+    }
+  }
+
+  async updateMultipleColumns(
+    boardId: string,
+    itemId: string,
+    columnValues: Record<string, any>
+  ): Promise<any> {
+    try {
+      const mutation = `
+        mutation($boardId: ID!, $itemId: ID!, $columnValues: JSON!) {
+          change_multiple_column_values(
+            board_id: $boardId,
+            item_id: $itemId,
+            column_values: $columnValues
+          ) {
+            id
+            name
+          }
+        }
+      `;
+
+      const variables = {
+        boardId,
+        itemId,
+        columnValues: JSON.stringify(columnValues),
+      };
+
+      const response = await this.monday.api(mutation, { variables });
+      return response.data.change_multiple_column_values;
+    } catch (error) {
+      console.error('Error updating multiple columns:', error);
+      throw new Error(`Failed to update multiple columns for item ${itemId}`);
+    }
+  }
+
+  async createItem(
+    boardId: string,
+    itemName: string,
+    columnValues?: Record<string, any>,
+    groupId?: string
+  ): Promise<any> {
+    try {
+      const mutation = `
+        mutation($boardId: ID!, $itemName: String!, $columnValues: JSON, $groupId: String) {
+          create_item(
+            board_id: $boardId,
+            item_name: $itemName,
+            column_values: $columnValues,
+            group_id: $groupId
+          ) {
+            id
+            name
+          }
+        }
+      `;
+
+      const variables: any = {
+        boardId,
+        itemName,
+      };
+
+      if (columnValues) {
+        variables.columnValues = JSON.stringify(columnValues);
+      }
+
+      if (groupId) {
+        variables.groupId = groupId;
+      }
+
+      const response = await this.monday.api(mutation, { variables });
+      return response.data.create_item;
+    } catch (error) {
+      console.error('Error creating item:', error);
+      throw new Error(`Failed to create item in board ${boardId}`);
+    }
+  }
+
+  async createSubitem(
+    parentItemId: string,
+    itemName: string,
+    columnValues?: Record<string, any>
+  ): Promise<any> {
+    try {
+      const mutation = `
+        mutation($parentItemId: ID!, $itemName: String!, $columnValues: JSON) {
+          create_subitem(
+            parent_item_id: $parentItemId,
+            item_name: $itemName,
+            column_values: $columnValues
+          ) {
+            id
+            name
+            board {
+              id
+            }
+          }
+        }
+      `;
+
+      const variables: any = {
+        parentItemId,
+        itemName,
+      };
+
+      if (columnValues) {
+        variables.columnValues = JSON.stringify(columnValues);
+      }
+
+      const response = await this.monday.api(mutation, { variables });
+      return response.data.create_subitem;
+    } catch (error) {
+      console.error('Error creating subitem:', error);
+      throw new Error(`Failed to create subitem for parent ${parentItemId}`);
     }
   }
 }

@@ -1,41 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
 import { db } from '@/db';
-import { integrationSettings } from '@/db/schema/fpa';
+import { account } from '@/db/schema/auth';
 import { MondayClient } from '@/lib/monday-client';
-import { eq, and } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 
+/**
+ * GET /api/monday/boards
+ * List all Monday.com boards accessible to the authenticated user
+ */
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth.api.getSession({
-      headers: request.headers,
-    });
+    // Get user info from middleware-added headers
+    const userId = request.headers.get('x-user-id');
+    const organizationId = request.headers.get('x-organization-id');
 
-    if (!session?.user) {
+    if (!userId || !organizationId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get Monday.com integration settings
-    const settings = await db
+    // Get user's Monday.com access token from account table
+    const [userAccount] = await db
       .select()
-      .from(integrationSettings)
-      .where(and(
-        eq(integrationSettings.userId, session.user.id),
-        eq(integrationSettings.provider, 'monday')
-      ))
+      .from(account)
+      .where(eq(account.userId, userId))
       .limit(1);
 
-    if (!settings[0]?.isConnected || !settings[0].accessToken) {
+    if (!userAccount?.accessToken) {
       return NextResponse.json(
-        { error: 'Monday.com integration not connected' },
+        { error: 'Monday.com not connected. Please sign in again.' },
         { status: 400 }
       );
     }
 
-    const mondayClient = new MondayClient(settings[0].accessToken);
+    // Fetch boards from Monday.com
+    const mondayClient = new MondayClient(userAccount.accessToken);
     const boards = await mondayClient.getBoards();
 
-    return NextResponse.json({ boards });
+    return NextResponse.json({
+      boards,
+      count: boards.length,
+      organizationId
+    });
 
   } catch (error) {
     console.error('Error fetching Monday boards:', error);
