@@ -22,6 +22,13 @@
       "when": 1759203569660,
       "tag": "0002_shiny_crusher_hogan",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1759338856965,
+      "tag": "0003_flowery_hex",
+      "breakpoints": true
     }
   ]
 }

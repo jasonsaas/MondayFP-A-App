@@ -117,6 +117,10 @@ export class MondayAuth {
       .limit(1);
 
     if (!org) {
+      // New organization gets 14-day trial
+      const trialEndsAt = new Date();
+      trialEndsAt.setDate(trialEndsAt.getDate() + 14);
+
       [org] = await db
         .insert(organization)
         .values({
@@ -124,6 +128,9 @@ export class MondayAuth {
           name: mondayUser.account.name,
           mondayAccountId: mondayUser.account.id,
           slug: mondayUser.account.slug,
+          subscription: 'trial',
+          trialEndsAt,
+          subscriptionStatus: 'active',
         })
         .returning();
     }
@@ -147,16 +154,18 @@ export class MondayAuth {
           organizationId: org.id,
           emailVerified: true,
           role: 'owner', // First user becomes owner
+          lastLogin: new Date(),
         })
         .returning();
     } else {
-      // Update user info
+      // Update user info and track last login
       [existingUser] = await db
         .update(user)
         .set({
           name: mondayUser.name,
           email: mondayUser.email,
           image: mondayUser.photo_thumb,
+          lastLogin: new Date(),
           updatedAt: new Date(),
         })
         .where(eq(user.id, existingUser.id))

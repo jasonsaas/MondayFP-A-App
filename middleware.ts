@@ -1,80 +1,35 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { mondayAuth } from '@/lib/monday-auth';
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import jwt from 'jsonwebtoken';
 
-const publicPaths = ['/sign-in', '/sign-up', '/api/auth'];
-const apiPaths = ['/api'];
+const publicPaths = ['/', '/auth', '/api/auth'];
 
-export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+export function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname;
 
   // Allow public paths
-  if (publicPaths.some(path => pathname.startsWith(path))) {
+  if (publicPaths.some(publicPath => path.startsWith(publicPath))) {
     return NextResponse.next();
   }
 
   // Check for session
-  const sessionToken = request.cookies.get('session')?.value;
+  const session = request.cookies.get('session');
 
-  if (!sessionToken) {
-    // Redirect to sign-in for protected pages
-    if (!pathname.startsWith('/api')) {
-      return NextResponse.redirect(new URL('/sign-in', request.url));
-    }
-
-    // Return 401 for API routes
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!session) {
+    return NextResponse.redirect(new URL('/auth/login', request.url));
   }
 
   try {
-    // Verify session
-    const sessionData = await mondayAuth.getSession(sessionToken);
-
-    if (!sessionData) {
-      // Invalid or expired session
-      const response = pathname.startsWith('/api')
-        ? NextResponse.json({ error: 'Session expired' }, { status: 401 })
-        : NextResponse.redirect(new URL('/sign-in?error=session_expired', request.url));
-
-      response.cookies.delete('session');
-      return response;
-    }
-
-    // Add user data to headers for API routes
-    if (pathname.startsWith('/api')) {
-      const requestHeaders = new Headers(request.headers);
-      requestHeaders.set('x-user-id', sessionData.user.id);
-      requestHeaders.set('x-organization-id', sessionData.organization.id);
-      requestHeaders.set('x-user-role', sessionData.user.role || 'member');
-
-      return NextResponse.next({
-        request: {
-          headers: requestHeaders,
-        },
-      });
-    }
-
+    // Verify JWT (basic check, full validation in API routes)
+    jwt.verify(session.value, process.env.JWT_SECRET!);
     return NextResponse.next();
-
-  } catch (error) {
-    console.error('Middleware error:', error);
-
-    const response = pathname.startsWith('/api')
-      ? NextResponse.json({ error: 'Authentication error' }, { status: 500 })
-      : NextResponse.redirect(new URL('/sign-in?error=auth_error', request.url));
-
-    return response;
+  } catch {
+    return NextResponse.redirect(new URL('/auth/login', request.url));
   }
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder
-     */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\..*|public).*)',
+    '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

@@ -6,15 +6,26 @@ export const organization = pgTable("organization", {
     mondayAccountId: text("monday_account_id").unique(),
     mondayWorkspaceId: text("monday_workspace_id"),
     slug: text("slug").notNull().unique(),
+    // Subscription & Trial
+    subscription: text("subscription").default("trial"), // 'trial', 'basic', 'pro', 'enterprise'
+    trialEndsAt: timestamp("trial_ends_at"),
+    subscriptionStatus: text("subscription_status").default("active"), // 'active', 'cancelled', 'expired'
+    // Settings
     settings: jsonb("settings").$type<{
         syncFrequency?: 'realtime' | '15min' | 'hourly' | 'daily';
         defaultBoardId?: string;
+        defaultCurrency?: 'USD' | 'EUR' | 'GBP';
         thresholds?: {
             warning: number;
             critical: number;
         };
         n8nWebhookUrl?: string;
-    }>(),
+    }>().default({
+        syncFrequency: 'hourly',
+        defaultCurrency: 'USD',
+        thresholds: { warning: 5, critical: 10 }
+    }),
+    active: boolean("active").default(true),
     createdAt: timestamp("created_at")
         .$defaultFn(() => new Date())
         .notNull(),
@@ -34,7 +45,8 @@ export const user = pgTable("user", {
     organizationId: text("organization_id")
         .references(() => organization.id, { onDelete: "cascade" }),
     mondayUserId: text("monday_user_id"),
-    role: text("role").default("member"), // "owner", "admin", "member"
+    role: text("role").default("member"), // "owner", "admin", "member", "viewer"
+    lastLogin: timestamp("last_login"),
     createdAt: timestamp("created_at")
         .$defaultFn(() => /* @__PURE__ */ new Date())
         .notNull(),
