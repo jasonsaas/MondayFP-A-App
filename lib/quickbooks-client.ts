@@ -39,6 +39,39 @@ export interface QBTransaction {
   memo?: string;
 }
 
+export interface QBProfitAndLoss {
+  reportName: string;
+  startDate: string;
+  endDate: string;
+  currency: string;
+  columns: QBReportColumn[];
+  rows: QBReportRow[];
+  totalRevenue: number;
+  totalExpenses: number;
+  netIncome: number;
+}
+
+export interface QBReportColumn {
+  type: string;
+  metadata: {
+    name: string;
+    value: string;
+  }[];
+}
+
+export interface QBReportRow {
+  type: 'Section' | 'Data';
+  group?: string;
+  summary?: {
+    name: string;
+    value: number;
+  };
+  colData?: Array<{
+    value: string;
+    id?: string;
+  }>;
+}
+
 export class QuickBooksClient {
   private oauthClient: IntuitOAuthClient;
   private accessToken: string;
@@ -213,6 +246,106 @@ export class QuickBooksClient {
     } catch (error) {
       console.error('Error fetching company info:', error);
       throw new Error('Failed to fetch QuickBooks company information');
+    }
+  }
+
+  async getProfitAndLoss(startDate: string, endDate: string): Promise<QBProfitAndLoss> {
+    try {
+      const params = new URLSearchParams({
+        start_date: startDate,
+        end_date: endDate,
+        accounting_method: 'Accrual',
+      });
+
+      const data = await this.makeRequest(`reports/ProfitAndLoss?${params.toString()}`);
+
+      if (!data.Rows) {
+        throw new Error('Invalid P&L report response from QuickBooks');
+      }
+
+      // Parse the complex nested structure from QuickBooks
+      let totalRevenue = 0;
+      let totalExpenses = 0;
+      let netIncome = 0;
+
+      const rows: QBReportRow[] = data.Rows.Row.map((row: any) => {
+        if (row.type === 'Section') {
+          // Section rows contain summary data for revenue/expenses
+          const summaryValue = parseFloat(row.Summary?.ColData?.[0]?.value || '0');
+
+          // Identify revenue and expense sections
+          if (row.group === 'Income' || row.Header?.ColData?.[0]?.value?.includes('Income')) {
+            totalRevenue += summaryValue;
+          } else if (row.group === 'Expenses' || row.Header?.ColData?.[0]?.value?.includes('Expense')) {
+            totalExpenses += summaryValue;
+          }
+
+          return {
+            type: 'Section' as const,
+            group: row.group || row.Header?.ColData?.[0]?.value,
+            summary: {
+              name: row.Summary?.ColData?.[0]?.value || '',
+              value: summaryValue,
+            },
+          };
+        } else {
+          // Data rows contain individual line items
+          return {
+            type: 'Data' as const,
+            colData: row.ColData?.map((col: any) => ({
+              value: col.value || '',
+              id: col.id,
+            })),
+          };
+        }
+      });
+
+      // Net income is typically the last row or calculated as revenue - expenses
+      const lastRow = data.Rows.Row[data.Rows.Row.length - 1];
+      if (lastRow?.Summary?.ColData?.[0]?.value) {
+        netIncome = parseFloat(lastRow.Summary.ColData[0].value);
+      } else {
+        netIncome = totalRevenue - totalExpenses;
+      }
+
+      return {
+        reportName: data.Header?.ReportName || 'Profit and Loss',
+        startDate: data.Header?.StartPeriod || startDate,
+        endDate: data.Header?.EndPeriod || endDate,
+        currency: data.Header?.Currency || 'USD',
+        columns: data.Columns?.Column || [],
+        rows,
+        totalRevenue,
+        totalExpenses,
+        netIncome,
+      };
+    } catch (error) {
+      console.error('Error fetching P&L report:', error);
+      throw new Error('Failed to fetch QuickBooks P&L report');
+    }
+  }
+
+  async refreshAccessToken(refreshToken: string): Promise<{
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    x_refresh_token_expires_in: number;
+  }> {
+    try {
+      const authResponse = await this.oauthClient.refreshUsingToken(refreshToken);
+      const token = authResponse.getToken();
+
+      console.log('QuickBooks token refreshed successfully');
+
+      return {
+        access_token: token.access_token,
+        refresh_token: token.refresh_token,
+        expires_in: token.expires_in || 3600,
+        x_refresh_token_expires_in: token.x_refresh_token_expires_in || 8726400,
+      };
+    } catch (error) {
+      console.error('Error refreshing QuickBooks token:', error);
+      throw new Error('Failed to refresh QuickBooks access token');
     }
   }
 }

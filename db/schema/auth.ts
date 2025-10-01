@@ -1,4 +1,4 @@
-import { pgTable, text, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
 
 export const organization = pgTable("organization", {
     id: text("id").primaryKey(),
@@ -6,7 +6,15 @@ export const organization = pgTable("organization", {
     mondayAccountId: text("monday_account_id").unique(),
     mondayWorkspaceId: text("monday_workspace_id"),
     slug: text("slug").notNull().unique(),
-    settings: text("settings"), // JSON string
+    settings: jsonb("settings").$type<{
+        syncFrequency?: 'realtime' | '15min' | 'hourly' | 'daily';
+        defaultBoardId?: string;
+        thresholds?: {
+            warning: number;
+            critical: number;
+        };
+        n8nWebhookUrl?: string;
+    }>(),
     createdAt: timestamp("created_at")
         .$defaultFn(() => new Date())
         .notNull(),

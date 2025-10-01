@@ -1,5 +1,25 @@
 import { pgTable, text, numeric, timestamp, integer, jsonb, boolean } from "drizzle-orm/pg-core";
-import { user } from "./auth";
+import { user, organization } from "./auth";
+
+// TypeScript types for variance data
+export type VarianceData = {
+  itemId: string;
+  itemName: string;
+  category: string;
+  budgetAmount: number;
+  actualAmount: number;
+  variance: number;
+  variancePercentage: number;
+  severity: 'normal' | 'warning' | 'critical';
+};
+
+export type VarianceSummary = {
+  totalBudget: number;
+  totalActual: number;
+  totalVariance: number;
+  variancePercentage: number;
+  itemCount: number;
+};
 
 export const mondayBoards = pgTable("monday_boards", {
   id: text("id").primaryKey(),
@@ -134,4 +154,16 @@ export const integrationSettings = pgTable("integration_settings", {
   lastSyncAt: timestamp("last_sync_at"),
   createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
   updatedAt: timestamp("updated_at").$defaultFn(() => new Date()).notNull(),
+});
+
+export const varianceSnapshots = pgTable("variance_snapshots", {
+  id: text("id").primaryKey(),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  boardId: text("board_id").notNull(), // Monday.com board ID
+  period: text("period").notNull(), // "2024-Q1", "2024-01", "2024"
+  data: jsonb("data").$type<VarianceData[]>(), // Array of variance line items
+  summary: jsonb("summary").$type<VarianceSummary>(), // Aggregated totals
+  createdAt: timestamp("created_at").$defaultFn(() => new Date()).notNull(),
 });

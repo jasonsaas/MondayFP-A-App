@@ -15,10 +15,13 @@ import { eq } from 'drizzle-orm';
  */
 
 interface N8NWebhookPayload {
-  action: 'run_analysis' | 'sync_data' | 'notify_variances';
+  action: 'run_analysis' | 'sync_data' | 'notify_variances' | 'callback' | 'status_update';
   data: any;
   organizationId?: string;
   userId?: string;
+  executionId?: string;
+  callbackType?: 'success' | 'error' | 'progress';
+  metadata?: Record<string, any>;
 }
 
 export async function POST(request: NextRequest) {
@@ -60,6 +63,12 @@ export async function POST(request: NextRequest) {
 
       case 'notify_variances':
         return await handleNotifyVariances(payload);
+
+      case 'callback':
+        return await handleCallback(payload);
+
+      case 'status_update':
+        return await handleStatusUpdate(payload);
 
       default:
         return NextResponse.json(
@@ -184,6 +193,139 @@ async function handleNotifyVariances(payload: N8NWebhookPayload) {
       criticalVariances: criticalVariances.length,
       channels: notificationChannels || ['email'],
       sentAt: new Date().toISOString(),
+    },
+  });
+}
+
+async function handleCallback(payload: N8NWebhookPayload) {
+  const { executionId, callbackType, data, metadata } = payload;
+
+  if (!executionId) {
+    return NextResponse.json(
+      { error: 'Missing execution ID' },
+      { status: 400 }
+    );
+  }
+
+  // Log the callback for monitoring
+  console.log('n8n callback received:', {
+    executionId,
+    callbackType,
+    timestamp: new Date().toISOString(),
+    metadata,
+  });
+
+  // Handle different callback types
+  switch (callbackType) {
+    case 'success':
+      // Workflow completed successfully
+      console.log(`Workflow ${executionId} completed successfully`, data);
+
+      // If this was a sync operation, update the sync status
+      if (metadata?.syncJobId) {
+        // In production, update sync job status in database
+        console.log(`Sync job ${metadata.syncJobId} completed`);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Callback processed',
+        data: {
+          executionId,
+          status: 'completed',
+          processedAt: new Date().toISOString(),
+        },
+      });
+
+    case 'error':
+      // Workflow encountered an error
+      console.error(`Workflow ${executionId} failed:`, data?.error || data);
+
+      // In production, update job status and notify relevant parties
+      if (metadata?.syncJobId) {
+        console.error(`Sync job ${metadata.syncJobId} failed`);
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Error callback processed',
+        data: {
+          executionId,
+          status: 'failed',
+          error: data?.error || 'Unknown error',
+          processedAt: new Date().toISOString(),
+        },
+      });
+
+    case 'progress':
+      // Workflow progress update
+      console.log(`Workflow ${executionId} progress:`, data?.progress || 0);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Progress update received',
+        data: {
+          executionId,
+          progress: data?.progress || 0,
+          message: data?.message,
+          processedAt: new Date().toISOString(),
+        },
+      });
+
+    default:
+      return NextResponse.json(
+        { error: 'Unknown callback type' },
+        { status: 400 }
+      );
+  }
+}
+
+async function handleStatusUpdate(payload: N8NWebhookPayload) {
+  const { executionId, data, metadata } = payload;
+
+  if (!executionId) {
+    return NextResponse.json(
+      { error: 'Missing execution ID' },
+      { status: 400 }
+    );
+  }
+
+  const { status, progress, currentStep, totalSteps, message, error } = data || {};
+
+  // Log the status update
+  console.log('n8n status update:', {
+    executionId,
+    status,
+    progress,
+    currentStep,
+    totalSteps,
+    timestamp: new Date().toISOString(),
+  });
+
+  // In production, you would:
+  // 1. Update the execution status in database
+  // 2. Emit real-time updates via WebSocket or SSE
+  // 3. Update UI progress indicators
+  // 4. Send notifications if status is 'completed' or 'failed'
+
+  // For sync jobs, update the sync status
+  if (metadata?.syncJobId) {
+    // Update sync job progress in database
+    console.log(`Sync job ${metadata.syncJobId} status: ${status}, progress: ${progress}%`);
+  }
+
+  return NextResponse.json({
+    success: true,
+    message: 'Status update processed',
+    data: {
+      executionId,
+      status,
+      progress: progress || 0,
+      currentStep: currentStep || 1,
+      totalSteps: totalSteps || 1,
+      message: message || 'Processing...',
+      error,
+      updatedAt: new Date().toISOString(),
     },
   });
 }
