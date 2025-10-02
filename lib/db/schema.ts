@@ -1,4 +1,5 @@
 import { pgTable, uuid, varchar, json, timestamp, integer, boolean, text } from 'drizzle-orm/pg-core';
+import { relations } from 'drizzle-orm';
 
 // Organizations table - one per Monday account
 export const organizations = pgTable('organizations', {
@@ -62,3 +63,31 @@ export const varianceSnapshots = pgTable('variance_snapshots', {
   data: json('data').$type<any>(),
   createdAt: timestamp('created_at').defaultNow(),
 });
+
+// Relations
+export const organizationsRelations = relations(organizations, ({ many }) => ({
+  users: many(users),
+  varianceSnapshots: many(varianceSnapshots),
+}));
+
+export const usersRelations = relations(users, ({ one, many }) => ({
+  organization: one(organizations, {
+    fields: [users.organizationId],
+    references: [organizations.id],
+  }),
+  sessions: many(sessions),
+}));
+
+export const sessionsRelations = relations(sessions, ({ one }) => ({
+  user: one(users, {
+    fields: [sessions.userId],
+    references: [users.id],
+  }),
+}));
+
+export const varianceSnapshotsRelations = relations(varianceSnapshots, ({ one }) => ({
+  organization: one(organizations, {
+    fields: [varianceSnapshots.organizationId],
+    references: [organizations.id],
+  }),
+}));

@@ -1,0 +1,104 @@
+{
+  "name": "FP&A Variance Analyzer",
+  "version": "1.0.0",
+  "short_description": "Automated variance analysis between QuickBooks actuals and Monday budgets",
+  "long_description": "Connect your QuickBooks P&L data with Monday.com boards to automatically calculate and track budget variances. Features real-time sync, automated alerts for threshold breaches, and beautiful variance dashboards.",
+  "icon": "https://your-app-url.com/icon.png",
+  "developer": {
+    "name": "Your Company",
+    "url": "https://your-company.com",
+    "support_url": "https://support.your-company.com",
+    "privacy_url": "https://your-company.com/privacy"
+  },
+  "oauth": {
+    "client_id": "${MONDAY_CLIENT_ID}",
+    "redirect_uris": [
+      "${NEXT_PUBLIC_APP_URL}/api/auth/monday/callback"
+    ],
+    "scopes": [
+      "me:read",
+      "boards:read",
+      "boards:write",
+      "workspaces:read",
+      "account:read"
+    ]
+  },
+  "features": {
+    "board_view": {
+      "assets": {
+        "primary": "${NEXT_PUBLIC_APP_URL}/monday-view"
+      },
+      "settings": {
+        "height": 600,
+        "supports_multiple_boards": true
+      }
+    },
+    "dashboard_widget": {
+      "assets": {
+        "primary": "${NEXT_PUBLIC_APP_URL}/monday-widget"
+      },
+      "settings": {
+        "width": 4,
+        "height": 4
+      }
+    }
+  },
+  "permissions": [
+    "boards:read",
+    "boards:write",
+    "workspaces:read",
+    "account:read"
+  ],
+  "webhooks": {
+    "subscriptions": [
+      {
+        "event": "change_column_value",
+        "url": "${NEXT_PUBLIC_APP_URL}/api/webhooks/monday"
+      }
+    ]
+  },
+  "integrations": {
+    "quickbooks": {
+      "required": true,
+      "description": "Connect QuickBooks to sync P&L data"
+    }
+  },
+  "pricing": {
+    "model": "subscription",
+    "plans": [
+      {
+        "name": "Trial",
+        "price": 0,
+        "duration_days": 14
+      },
+      {
+        "name": "Professional",
+        "price": 49,
+        "billing_period": "monthly"
+      },
+      {
+        "name": "Enterprise",
+        "price": 149,
+        "billing_period": "monthly"
+      }
+    ]
+  },
+  "screenshots": [
+    {
+      "url": "https://your-app-url.com/screenshots/1.png",
+      "caption": "Variance Dashboard"
+    },
+    {
+      "url": "https://your-app-url.com/screenshots/2.png",
+      "caption": "QuickBooks Integration"
+    }
+  ],
+  "categories": [
+    "finance",
+    "analytics",
+    "integrations"
+  ],
+  "supported_languages": [
+    "en"
+  ]
+}

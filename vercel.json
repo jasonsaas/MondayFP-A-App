@@ -1,0 +1,133 @@
+{
+  "version": 2,
+  "name": "fpna-platform",
+  "regions": ["iad1"],
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm ci",
+  "devCommand": "npm run dev",
+  "env": {
+    "NODE_ENV": "production"
+  },
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_APP_URL": "@app-url",
+      "DATABASE_URL": "@database-url",
+      "REDIS_URL": "@redis-url",
+      "MONDAY_CLIENT_ID": "@monday-client-id",
+      "MONDAY_CLIENT_SECRET": "@monday-client-secret",
+      "QUICKBOOKS_CLIENT_ID": "@quickbooks-client-id",
+      "QUICKBOOKS_CLIENT_SECRET": "@quickbooks-client-secret",
+      "JWT_SECRET": "@jwt-secret",
+      "ENCRYPTION_KEY": "@encryption-key",
+      "NEXT_PUBLIC_SENTRY_DSN": "@sentry-dsn"
+    }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/_next/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/docs",
+      "destination": "/api/docs",
+      "permanent": false
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/healthz",
+      "destination": "/api/health"
+    },
+    {
+      "source": "/api/v1/:path*",
+      "destination": "/api/:path*"
+    }
+  ],
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    },
+    "app/api/sync/**/*.ts": {
+      "maxDuration": 60,
+      "memory": 2048
+    },
+    "app/api/variance/calculate/route.ts": {
+      "maxDuration": 60,
+      "memory": 2048
+    },
+    "app/api/webhooks/**/*.ts": {
+      "maxDuration": 30,
+      "memory": 1024
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/sync-budget",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/sync-actual",
+      "schedule": "0 */4 * * *"
+    },
+    {
+      "path": "/api/cron/calculate-variance",
+      "schedule": "0 */1 * * *"
+    },
+    {
+      "path": "/api/cron/cleanup-sessions",
+      "schedule": "0 0 * * *"
+    }
+  ],
+  "github": {
+    "silent": false,
+    "autoAlias": true
+  }
+}

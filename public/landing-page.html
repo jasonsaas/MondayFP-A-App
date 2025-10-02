@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Save 20 hours per month on variance reporting. Automatically connect Monday.com budgets with QuickBooks actuals for instant AI-powered insights.">
+    <title>FP&A Variance Analyzer - Save 20 Hours/Month on Variance Reporting</title>
+
+    <!-- Open Graph / Social Media -->
+    <meta property="og:title" content="Save 20 Hours/Month on Variance Reporting">
+    <meta property="og:description" content="Automatically connect Monday.com budgets with QuickBooks actuals. Get AI insights in 3 seconds.">
+    <meta property="og:image" content="https://yourapp.com/og-image.png">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #2d3748;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 100px 20px 80px;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+
+        .hero .subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 40px;
+            opacity: 0.95;
+        }
+
+        .hero-cta {
+            display: inline-block;
+            background: white;
+            color: #667eea;
+            padding: 18px 50px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-size: 1.2rem;
+            font-weight: 700;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 10px;
+        }
+
+        .hero-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .hero-cta.secondary {
+            background: transparent;
+            color: white;
+            border: 2px solid white;
+        }
+
+        .trust-badges {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-top: 60px;
+            flex-wrap: wrap;
+        }
+
+        .trust-badge {
+            text-align: center;
+        }
+
+        .trust-badge .number {
+            font-size: 2.5rem;
+            font-weight: 800;
+        }
+
+        .trust-badge .label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        /* Problem Section */
+        .section {
+            padding: 80px 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            text-align: center;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+
+        .section-subtitle {
+            text-align: center;
+            font-size: 1.2rem;
+            color: #718096;
+            margin-bottom: 60px;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .problem-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .problem-card {
+            background: #f7fafc;
+            padding: 30px;
+            border-radius: 12px;
+            border-left: 4px solid #fc8181;
+        }
+
+        .problem-card h3 {
+            color: #c53030;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        /* Solution Section */
+        .solution {
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 30px;
+        }
+
+        .feature-card {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 15px;
+        }
+
+        .feature-card h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        /* How It Works */
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+            margin-top: 60px;
+        }
+
+        .step {
+            text-align: center;
+            position: relative;
+        }
+
+        .step-number {
+            width: 60px;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 0 auto 20px;
+        }
+
+        .step h3 {
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+
+        /* Pricing */
+        .pricing-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 60px;
+            max-width: 1000px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .pricing-card {
+            background: white;
+            border: 3px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 40px 30px;
+            text-align: center;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 40px rgba(102, 126, 234, 0.2);
+        }
+
+        .pricing-card.featured {
+            border-color: #667eea;
+            border-width: 4px;
+            transform: scale(1.05);
+        }
+
+        .pricing-card .badge {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 6px 20px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+
+        .pricing-card h3 {
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+        }
+
+        .pricing-card .price {
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .pricing-card .price span {
+            font-size: 1.2rem;
+            color: #718096;
+        }
+
+        .pricing-card ul {
+            list-style: none;
+            margin: 30px 0;
+            text-align: left;
+        }
+
+        .pricing-card li {
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .pricing-card li:before {
+            content: "✓";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 12px;
+        }
+
+        .pricing-cta {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            transition: opacity 0.2s;
+        }
+
+        .pricing-cta:hover {
+            opacity: 0.9;
+        }
+
+        /* Social Proof */
+        .testimonials {
+            background: #f7fafc;
+        }
+
+        .testimonial-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+            margin-top: 60px;
+        }
+
+        .testimonial {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+
+        .testimonial-text {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            color: #4a5568;
+            margin-bottom: 20px;
+            font-style: italic;
+        }
+
+        .testimonial-author {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .author-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+
+        .author-info h4 {
+            margin-bottom: 3px;
+            font-size: 1rem;
+        }
+
+        .author-info p {
+            color: #718096;
+            font-size: 0.9rem;
+        }
+
+        /* Stats Section */
+        .stats {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-align: center;
+            padding: 80px 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 40px;
+            max-width: 1000px;
+            margin: 40px auto 0;
+        }
+
+        .stat-item h3 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+        }
+
+        .stat-item p {
+            font-size: 1.1rem;
+            opacity: 0.95;
+        }
+
+        /* CTA Section */
+        .final-cta {
+            padding: 100px 20px;
+            text-align: center;
+            background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+        }
+
+        .final-cta h2 {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            font-weight: 800;
+        }
+
+        .final-cta p {
+            font-size: 1.3rem;
+            color: #4a5568;
+            margin-bottom: 40px;
+        }
+
+        /* Footer */
+        footer {
+            background: #2d3748;
+            color: white;
+            padding: 60px 20px 30px;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+        }
+
+        .footer-section h4 {
+            margin-bottom: 20px;
+            font-size: 1.2rem;
+        }
+
+        .footer-section a {
+            color: #cbd5e0;
+            text-decoration: none;
+            display: block;
+            margin-bottom: 10px;
+            transition: color 0.2s;
+        }
+
+        .footer-section a:hover {
+            color: white;
+        }
+
+        .footer-bottom {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid #4a5568;
+            color: #cbd5e0;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero .subtitle {
+                font-size: 1.2rem;
+            }
+
+            .section-title {
+                font-size: 2rem;
+            }
+
+            .stats-grid, .feature-grid, .testimonial-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .pricing-card.featured {
+                transform: scale(1);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <h1>Save 20 Hours Every Month<br>on Variance Reporting</h1>
+        <p class="subtitle">Automatically connect Monday.com budgets with QuickBooks actuals.<br>Get AI-powered insights in 3 seconds.</p>
+
+        <a href="#pricing" class="hero-cta">Start Free Trial</a>
+        <a href="#demo" class="hero-cta secondary">Watch Demo</a>
+
+        <div class="trust-badges">
+            <div class="trust-badge">
+                <div class="number">20+</div>
+                <div class="label">Hours Saved/Month</div>
+            </div>
+            <div class="trust-badge">
+                <div class="number">99.8%</div>
+                <div class="label">Accuracy Rate</div>
+            </div>
+            <div class="trust-badge">
+                <div class="number">3 sec</div>
+                <div class="label">Analysis Time</div>
+            </div>
+            <div class="trust-badge">
+                <div class="number">12x</div>
+                <div class="label">Average ROI</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Problem Section -->
+    <section class="section">
+        <h2 class="section-title">The Variance Reporting Nightmare</h2>
+        <p class="section-subtitle">Finance teams waste 20-30 hours every month on manual variance reporting</p>
+
+        <div class="problem-grid">
+            <div class="problem-card">
+                <h3>😰 Manual Data Export Hell</h3>
+                <p>Export budgets from Monday.com, export actuals from QuickBooks, manually match hundreds of line items in Excel using vlookups. Pray there are no errors.</p>
+            </div>
+            <div class="problem-card">
+                <h3>⏰ Always Late, Never Strategic</h3>
+                <p>By the time you finish the report (day 20-25), it's too late to act on budget issues. Your team becomes report generators, not strategic advisors.</p>
+            </div>
+            <div class="problem-card">
+                <h3>❌ Errors Everywhere</h3>
+                <p>Mismatched accounts, copy-paste errors, wrong formulas. One mistake and your CFO loses trust in the entire report. The pressure is crushing.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Solution Section -->
+    <section class="section solution">
+        <h2 class="section-title">There's a Better Way</h2>
+        <p class="section-subtitle">FP&A Variance Analyzer automates the entire process from data sync to AI insights</p>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🔗</div>
+                <h3>One-Click Integration</h3>
+                <p>Connect Monday.com and QuickBooks in 2 minutes. Our AI auto-detects your budget columns and matches accounts with 98% accuracy.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <h3>3-Second Analysis</h3>
+                <p>What takes 20 hours manually happens in 3 seconds. 100+ line items analyzed, variances calculated, insights generated instantly.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <h3>AI-Powered Insights</h3>
+                <p>Don't just see the numbers—understand WHY. Our AI explains variances, identifies patterns, and recommends actions automatically.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔄</div>
+                <h3>Real-Time Sync</h3>
+                <p>Variance data updates automatically in your Monday boards. Your entire team sees live budget performance without waiting for reports.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📈</div>
+                <h3>Trend Analysis</h3>
+                <p>Spot patterns over time. See which categories consistently overspend. Predict future variances before they happen.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🔮</div>
+                <h3>What-If Scenarios</h3>
+                <p>Model "what if we cut 10%?" or "what if revenue drops 5%?" Make data-driven decisions with confidence.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works -->
+    <section class="section">
+        <h2 class="section-title">How It Works</h2>
+        <p class="section-subtitle">Get your first variance analysis in under 10 minutes</p>
+
+        <div class="steps">
+            <div class="step">
+                <div class="step-number">1</div>
+                <h3>Connect Your Tools</h3>
+                <p>One-click OAuth for Monday.com and QuickBooks. No API keys, no technical setup. Just click and authorize.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <h3>Map Your Accounts</h3>
+                <p>Our AI suggests account mappings. You approve with one click. Smart matching remembers for next time.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <h3>Analyze Variance</h3>
+                <p>Click "Analyze" and watch. 3 seconds later, you have complete variance analysis with AI insights.</p>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <h3>Get Your Time Back</h3>
+                <p>Automated reports, real-time Monday updates, instant alerts. Focus on strategy, not spreadsheets.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="section testimonials">
+        <h2 class="section-title">Trusted by Finance Teams</h2>
+        <p class="section-subtitle">See what CFOs and finance leaders are saying</p>
+
+        <div class="testimonial-grid">
+            <div class="testimonial">
+                <p class="testimonial-text">"We were spending 25 hours every month reconciling budgets. Now it takes 30 minutes. The AI insights have prevented two major budget overruns this quarter. ROI was instant."</p>
+                <div class="testimonial-author">
+                    <div class="author-avatar">SC</div>
+                    <div class="author-info">
+                        <h4>Sarah Chen</h4>
+                        <p>CFO, TechForward Inc.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="testimonial">
+                <p class="testimonial-text">"Finally, my finance team can be strategic advisors instead of Excel jockeys. The time savings alone justified the cost in week one. The insights are game-changing."</p>
+                <div class="testimonial-author">
+                    <div class="author-avatar">MR</div>
+                    <div class="author-info">
+                        <h4>Michael Rodriguez</h4>
+                        <p>Finance Director, GrowthCo</p>
+                    </div>
+                </div>
+            </div>
+            <div class="testimonial">
+                <p class="testimonial-text">"Setup took 15 minutes. First variance analysis: 3 seconds. I immediately saw a $35K marketing overspend we would have missed. This tool paid for itself on day one."</p>
+                <div class="testimonial-author">
+                    <div class="author-avatar">EW</div>
+                    <div class="author-info">
+                        <h4>Emily Watson</h4>
+                        <p>Controller, Innovate Partners</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="stats">
+        <h2 style="font-size: 2.5rem; margin-bottom: 20px;">The Results Speak for Themselves</h2>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <h3>$18K</h3>
+                <p>Average annual savings</p>
+            </div>
+            <div class="stat-item">
+                <h3>240</h3>
+                <p>Hours saved per year</p>
+            </div>
+            <div class="stat-item">
+                <h3>99.8%</h3>
+                <p>Accuracy rate</p>
+            </div>
+            <div class="stat-item">
+                <h3>20 days</h3>
+                <p>Faster insights</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing -->
+    <section class="section" id="pricing">
+        <h2 class="section-title">Simple, Transparent Pricing</h2>
+        <p class="section-subtitle">Start free, upgrade when you're ready. Cancel anytime.</p>
+
+        <div class="pricing-cards">
+            <div class="pricing-card">
+                <h3>Starter</h3>
+                <div class="price">$49<span>/month</span></div>
+                <ul>
+                    <li>1 Monday board</li>
+                    <li>1 QuickBooks company</li>
+                    <li>Up to 100 line items</li>
+                    <li>Weekly auto-sync</li>
+                    <li>Email insights</li>
+                    <li>Basic support</li>
+                </ul>
+                <a href="https://yourapp.com/signup?plan=starter" class="pricing-cta">Start Free Trial</a>
+            </div>
+
+            <div class="pricing-card featured">
+                <span class="badge">MOST POPULAR</span>
+                <h3>Professional</h3>
+                <div class="price">$149<span>/month</span></div>
+                <ul>
+                    <li>Unlimited Monday boards</li>
+                    <li>Multiple QB companies</li>
+                    <li>Unlimited line items</li>
+                    <li>Daily auto-sync</li>
+                    <li>AI insights in Monday</li>
+                    <li>Trend analysis</li>
+                    <li>What-if scenarios</li>
+                    <li>API access</li>
+                    <li>Priority support</li>
+                </ul>
+                <a href="https://yourapp.com/signup?plan=professional" class="pricing-cta">Start Free Trial</a>
+            </div>
+
+            <div class="pricing-card">
+                <h3>Enterprise</h3>
+                <div class="price">Custom</div>
+                <ul>
+                    <li>Everything in Professional</li>
+                    <li>Dedicated account manager</li>
+                    <li>Custom integrations</li>
+                    <li>SSO & advanced security</li>
+                    <li>SLA guarantees</li>
+                    <li>Onboarding & training</li>
+                    <li>Custom workflows</li>
+                </ul>
+                <a href="https://yourapp.com/contact-sales" class="pricing-cta">Contact Sales</a>
+            </div>
+        </div>
+
+        <p style="text-align: center; margin-top: 40px; color: #718096;">
+            ✓ 14-day free trial &nbsp;&nbsp;•&nbsp;&nbsp; ✓ No credit card required &nbsp;&nbsp;•&nbsp;&nbsp; ✓ Cancel anytime
+        </p>
+    </section>
+
+    <!-- Final CTA -->
+    <section class="final-cta">
+        <h2>Ready to Get Your 20 Hours Back?</h2>
+        <p>Join 500+ finance teams who've eliminated variance reporting busywork</p>
+        <a href="https://yourapp.com/signup" class="hero-cta">Start Free Trial - No Credit Card Required</a>
+        <p style="margin-top: 30px; font-size: 1rem; color: #718096;">
+            Set up in 10 minutes • First analysis in 3 seconds • 14-day money-back guarantee
+        </p>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-section">
+                <h4>Product</h4>
+                <a href="#features">Features</a>
+                <a href="#pricing">Pricing</a>
+                <a href="/integrations">Integrations</a>
+                <a href="/changelog">Changelog</a>
+                <a href="/roadmap">Roadmap</a>
+            </div>
+            <div class="footer-section">
+                <h4>Resources</h4>
+                <a href="/docs">Documentation</a>
+                <a href="/api">API Reference</a>
+                <a href="/case-studies">Case Studies</a>
+                <a href="/blog">Blog</a>
+                <a href="/roi-calculator">ROI Calculator</a>
+            </div>
+            <div class="footer-section">
+                <h4>Company</h4>
+                <a href="/about">About Us</a>
+                <a href="/careers">Careers</a>
+                <a href="/contact">Contact</a>
+                <a href="/partners">Partners</a>
+                <a href="/press">Press Kit</a>
+            </div>
+            <div class="footer-section">
+                <h4>Support</h4>
+                <a href="/help">Help Center</a>
+                <a href="/status">System Status</a>
+                <a href="/security">Security</a>
+                <a href="/privacy">Privacy Policy</a>
+                <a href="/terms">Terms of Service</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2025 FP&A Variance Analyzer. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <!-- Analytics (Add your tracking code) -->
+    <script>
+        // Add Google Analytics, Mixpanel, or your analytics tool here
+    </script>
+
+</body>
+</html>

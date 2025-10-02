@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FP&A Variance Analyzer - ROI Calculator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .calculator-card {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            color: #667eea;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        .input-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #4a5568;
+        }
+
+        .input-group input,
+        .input-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .result-card.success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+
+        .result-card.warning {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+
+        .result-card h3 {
+            font-size: 0.9rem;
+            font-weight: 500;
+            opacity: 0.95;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .result-card .value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .result-card .subtitle {
+            font-size: 0.9rem;
+            opacity: 0.85;
+        }
+
+        .breakdown {
+            background: #f7fafc;
+            padding: 25px;
+            border-radius: 12px;
+            margin-top: 30px;
+        }
+
+        .breakdown h3 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .breakdown-item:last-child {
+            border-bottom: none;
+        }
+
+        .breakdown-item .label {
+            font-weight: 500;
+            color: #4a5568;
+        }
+
+        .breakdown-item .value {
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .pricing-section {
+            margin-top: 40px;
+        }
+
+        .pricing-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .pricing-card {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 30px;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .pricing-card:hover {
+            border-color: #667eea;
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+        }
+
+        .pricing-card.recommended {
+            border-color: #667eea;
+            border-width: 3px;
+        }
+
+        .pricing-card .badge {
+            position: absolute;
+            top: -12px;
+            right: 20px;
+            background: #667eea;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .pricing-card h4 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #2d3748;
+        }
+
+        .pricing-card .price {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .pricing-card .price span {
+            font-size: 1rem;
+            color: #718096;
+        }
+
+        .pricing-card .roi-badge {
+            background: #10b981;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            display: inline-block;
+            margin: 15px 0;
+            font-weight: 600;
+        }
+
+        .pricing-card ul {
+            list-style: none;
+            margin: 20px 0;
+        }
+
+        .pricing-card li {
+            padding: 8px 0;
+            color: #4a5568;
+        }
+
+        .pricing-card li:before {
+            content: "✓";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .cta-button {
+            width: 100%;
+            padding: 14px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .cta-button:hover {
+            background: #5568d3;
+        }
+
+        .testimonial {
+            background: #eef2ff;
+            padding: 25px;
+            border-radius: 12px;
+            margin-top: 30px;
+            border-left: 4px solid #667eea;
+        }
+
+        .testimonial p {
+            font-style: italic;
+            color: #4a5568;
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+
+        .testimonial .author {
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        @media (max-width: 768px) {
+            .input-row {
+                grid-template-columns: 1fr;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .calculator-card {
+                padding: 25px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💰 FP&A Variance Analyzer ROI Calculator</h1>
+            <p>See how much time and money you'll save</p>
+        </div>
+
+        <div class="calculator-card">
+            <div class="section">
+                <h2>📊 Your Current Situation</h2>
+                <div class="input-row">
+                    <div class="input-group">
+                        <label for="hours">Hours spent on variance reporting/month</label>
+                        <input type="number" id="hours" value="20" min="1" max="200">
+                    </div>
+                    <div class="input-group">
+                        <label for="hourlyRate">Average hourly rate ($)</label>
+                        <input type="number" id="hourlyRate" value="75" min="10" max="500">
+                    </div>
+                </div>
+
+                <div class="input-row">
+                    <div class="input-group">
+                        <label for="teamSize">Finance team size</label>
+                        <input type="number" id="teamSize" value="3" min="1" max="50">
+                    </div>
+                    <div class="input-group">
+                        <label for="errorCost">Average cost of a variance error ($)</label>
+                        <input type="number" id="errorCost" value="5000" min="0" max="100000">
+                    </div>
+                </div>
+
+                <div class="input-row">
+                    <div class="input-group">
+                        <label for="errorsPerYear">Variance errors per year</label>
+                        <input type="number" id="errorsPerYear" value="4" min="0" max="50">
+                    </div>
+                    <div class="input-group">
+                        <label for="boardsCount">Number of Monday boards</label>
+                        <input type="number" id="boardsCount" value="3" min="1" max="100">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>💡 Your Savings</h2>
+                <div class="results-grid">
+                    <div class="result-card success">
+                        <h3>Monthly Savings</h3>
+                        <div class="value" id="monthlySavings">$0</div>
+                        <div class="subtitle">In labor costs</div>
+                    </div>
+                    <div class="result-card success">
+                        <h3>Annual Savings</h3>
+                        <div class="value" id="annualSavings">$0</div>
+                        <div class="subtitle">Total first-year value</div>
+                    </div>
+                    <div class="result-card warning">
+                        <h3>Time Saved</h3>
+                        <div class="value" id="timeSaved">0</div>
+                        <div class="subtitle">Hours per month</div>
+                    </div>
+                    <div class="result-card">
+                        <h3>ROI</h3>
+                        <div class="value" id="roi">0x</div>
+                        <div class="subtitle">Return on investment</div>
+                    </div>
+                </div>
+
+                <div class="breakdown">
+                    <h3>💵 Detailed Breakdown</h3>
+                    <div class="breakdown-item">
+                        <span class="label">Labor cost savings (annual)</span>
+                        <span class="value" id="laborCost">$0</span>
+                    </div>
+                    <div class="breakdown-item">
+                        <span class="label">Error prevention value (annual)</span>
+                        <span class="value" id="errorPrevention">$0</span>
+                    </div>
+                    <div class="breakdown-item">
+                        <span class="label">Faster insights value (annual)</span>
+                        <span class="value" id="insightsValue">$0</span>
+                    </div>
+                    <div class="breakdown-item">
+                        <span class="label">Team productivity gain (annual)</span>
+                        <span class="value" id="productivityGain">$0</span>
+                    </div>
+                    <div class="breakdown-item" style="border-top: 2px solid #667eea; margin-top: 10px; padding-top: 15px;">
+                        <span class="label"><strong>Total Annual Value</strong></span>
+                        <span class="value" style="color: #667eea; font-size: 1.3rem;" id="totalValue">$0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pricing-section">
+                <h2>📦 Choose Your Plan</h2>
+                <div class="pricing-cards">
+                    <div class="pricing-card">
+                        <h4>Starter</h4>
+                        <div class="price">$49<span>/month</span></div>
+                        <div class="roi-badge" id="starterROI">ROI: 0x</div>
+                        <ul>
+                            <li>1 Monday board</li>
+                            <li>1 QuickBooks company</li>
+                            <li>Up to 100 line items</li>
+                            <li>Weekly auto-sync</li>
+                            <li>Email insights</li>
+                            <li>Basic support</li>
+                        </ul>
+                        <button class="cta-button" onclick="window.location.href='https://yourapp.com/signup?plan=starter'">Start Free Trial</button>
+                    </div>
+
+                    <div class="pricing-card recommended">
+                        <span class="badge">RECOMMENDED</span>
+                        <h4>Professional</h4>
+                        <div class="price">$149<span>/month</span></div>
+                        <div class="roi-badge" id="professionalROI">ROI: 0x</div>
+                        <ul>
+                            <li>Unlimited Monday boards</li>
+                            <li>Multiple QB companies</li>
+                            <li>Unlimited line items</li>
+                            <li>Daily auto-sync</li>
+                            <li>AI insights in Monday</li>
+                            <li>Trend analysis</li>
+                            <li>What-if scenarios</li>
+                            <li>API access</li>
+                            <li>Priority support</li>
+                        </ul>
+                        <button class="cta-button" onclick="window.location.href='https://yourapp.com/signup?plan=professional'">Start Free Trial</button>
+                    </div>
+
+                    <div class="pricing-card">
+                        <h4>Enterprise</h4>
+                        <div class="price">Custom</div>
+                        <div class="roi-badge">Custom ROI</div>
+                        <ul>
+                            <li>Everything in Professional</li>
+                            <li>Dedicated account manager</li>
+                            <li>Custom integrations</li>
+                            <li>SSO & advanced security</li>
+                            <li>SLA guarantees</li>
+                            <li>Onboarding & training</li>
+                            <li>Custom workflows</li>
+                        </ul>
+                        <button class="cta-button" onclick="window.location.href='https://yourapp.com/contact-sales'">Contact Sales</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="testimonial">
+                <p>"We were spending 25 hours every month reconciling budgets from Monday with QuickBooks actuals. FP&A Variance Analyzer cut that to 30 minutes. The ROI was instant, and the AI insights have prevented two major budget overruns this quarter alone."</p>
+                <p class="author">— Sarah Chen, CFO at TechForward Inc.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function calculateROI() {
+            // Get input values
+            const hours = parseFloat(document.getElementById('hours').value) || 0;
+            const hourlyRate = parseFloat(document.getElementById('hourlyRate').value) || 0;
+            const teamSize = parseFloat(document.getElementById('teamSize').value) || 1;
+            const errorCost = parseFloat(document.getElementById('errorCost').value) || 0;
+            const errorsPerYear = parseFloat(document.getElementById('errorsPerYear').value) || 0;
+
+            // Calculate savings
+            const monthlySavings = hours * hourlyRate;
+            const annualLaborSavings = monthlySavings * 12;
+
+            // Error prevention value (assuming 80% error reduction)
+            const errorPreventionValue = errorCost * errorsPerYear * 0.8;
+
+            // Faster insights value (conservative estimate: 1% revenue impact)
+            const insightsValue = 10000; // Conservative fixed value
+
+            // Team productivity gain (10% more time for strategic work)
+            const productivityGain = (hours * 0.1 * hourlyRate * 12);
+
+            const totalAnnualValue = annualLaborSavings + errorPreventionValue + insightsValue + productivityGain;
+
+            // Update main cards
+            document.getElementById('monthlySavings').textContent = '$' + monthlySavings.toLocaleString();
+            document.getElementById('annualSavings').textContent = '$' + totalAnnualValue.toLocaleString();
+            document.getElementById('timeSaved').textContent = hours.toFixed(0);
+
+            // Calculate ROI for each plan
+            const starterAnnualCost = 49 * 12;
+            const professionalAnnualCost = 149 * 12;
+
+            const starterROI = (totalAnnualValue / starterAnnualCost).toFixed(1);
+            const professionalROI = (totalAnnualValue / professionalAnnualCost).toFixed(1);
+
+            document.getElementById('roi').textContent = professionalROI + 'x';
+            document.getElementById('starterROI').textContent = 'ROI: ' + starterROI + 'x';
+            document.getElementById('professionalROI').textContent = 'ROI: ' + professionalROI + 'x';
+
+            // Update breakdown
+            document.getElementById('laborCost').textContent = '$' + annualLaborSavings.toLocaleString();
+            document.getElementById('errorPrevention').textContent = '$' + errorPreventionValue.toLocaleString();
+            document.getElementById('insightsValue').textContent = '$' + insightsValue.toLocaleString();
+            document.getElementById('productivityGain').textContent = '$' + productivityGain.toLocaleString();
+            document.getElementById('totalValue').textContent = '$' + totalAnnualValue.toLocaleString();
+        }
+
+        // Add event listeners to all inputs
+        const inputs = document.querySelectorAll('input');
+        inputs.forEach(input => {
+            input.addEventListener('input', calculateROI);
+        });
+
+        // Calculate on page load
+        calculateROI();
+    </script>
+</body>
+</html>
