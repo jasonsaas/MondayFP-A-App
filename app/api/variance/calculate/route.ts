@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateApiKey } from '@/app/api/middleware/auth';
 import { db } from '@/lib/db';
 import { organizations } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
@@ -28,6 +29,10 @@ import {
  * }
  */
 export async function POST(request: NextRequest) {
+  // Validate API key
+  const authError = validateApiKey(request);
+  if (authError) return authError;
+
   try {
     const body = await request.json();
 

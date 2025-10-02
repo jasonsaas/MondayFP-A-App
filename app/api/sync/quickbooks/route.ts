@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { validateApiKey } from '@/app/api/middleware/auth';
 import { getSyncManager } from '@/lib/quickbooks/sync-manager';
 import { QBSyncOptions } from '@/lib/quickbooks/types';
 import { db } from '@/lib/db';
@@ -24,6 +25,10 @@ import { eq } from 'drizzle-orm';
  * }
  */
 export async function POST(request: NextRequest) {
+  // Validate API key
+  const authError = validateApiKey(request);
+  if (authError) return authError;
+
   try {
     const body = await request.json();
     const { organizationId, options } = body;
