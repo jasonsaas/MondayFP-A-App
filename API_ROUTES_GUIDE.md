@@ -578,3 +578,502 @@ Based on testing with real data:
 **Last Updated**: 2025-10-02
 **API Version**: 1.0.0
 **Status**: Production Ready ✅
+
+---
+
+## 🔄 Additional API Endpoints
+
+### 4. POST /api/auth/quickbooks/refresh
+
+Refreshes QuickBooks OAuth access token using the stored refresh token.
+
+**Purpose**: Automatically refresh expired QuickBooks tokens without user re-authentication.
+
+**Request**:
+```bash
+curl -X POST https://your-app.com/api/auth/quickbooks/refresh \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps=" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organizationId": "uuid-here"
+  }'
+```
+
+**Parameters**:
+- `organizationId` (string, required) - Organization UUID
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "expiresAt": "2025-10-02T13:00:00.000Z",
+  "expiresIn": 3600,
+  "message": "QuickBooks token refreshed successfully"
+}
+```
+
+**What it does**:
+1. Validates organization exists and has refresh token
+2. Calls QuickBooks OAuth token endpoint with refresh_token grant
+3. Updates both access token and refresh token in database
+4. Calculates new expiry time (1 hour from now)
+5. Returns new access token and expiry
+
+**Error Responses**:
+- `400` - No refresh token available (reconnection required)
+- `401` - Invalid refresh token
+- `404` - Organization not found
+- `500` - Token refresh failed
+
+---
+
+### 5. POST /api/reports/monthly
+
+Generates monthly variance PDF report.
+
+**Purpose**: Create formatted PDF reports for stakeholder distribution.
+
+**Request**:
+```bash
+curl -X POST https://your-app.com/api/reports/monthly \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps=" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organizationId": "uuid-here",
+    "period": "2025-10",
+    "includeCharts": true,
+    "includeInsights": true
+  }'
+```
+
+**Parameters**:
+- `organizationId` (string, required) - Organization UUID
+- `period` (string, required) - Period in YYYY-MM format
+- `includeCharts` (boolean, optional, default: true) - Include visualizations
+- `includeInsights` (boolean, optional, default: true) - Include AI insights
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "organizationId": "uuid-here",
+  "period": "2025-10",
+  "reportData": {
+    "organization": {
+      "name": "Acme Corp",
+      "period": "2025-10",
+      "generatedAt": "2025-10-02T12:00:00.000Z"
+    },
+    "summary": {
+      "totalBudget": 100000,
+      "totalActual": 112500,
+      "totalVariance": 12500,
+      "totalVariancePercent": 12.5,
+      "criticalCount": 3,
+      "warningCount": 5,
+      "normalCount": 12
+    },
+    "variances": [...],
+    "insights": [...],
+    "charts": {
+      "budgetVsActual": true,
+      "varianceByCategory": true,
+      "trendAnalysis": true
+    }
+  },
+  "metadata": {
+    "includeCharts": true,
+    "includeInsights": true,
+    "varianceAnalysisId": "analysis-uuid",
+    "totalAnalyses": 1
+  }
+}
+```
+
+**GET /api/reports/monthly?organizationId=uuid**:
+Returns list of available reports by period.
+
+**Error Responses**:
+- `400` - Missing or invalid parameters
+- `404` - Organization or variance data not found
+- `500` - Report generation failed
+
+---
+
+### 6. POST /api/alerts/log
+
+Logs variance alerts for tracking and notifications.
+
+**Purpose**: Record critical/warning variances for audit trail and alerting.
+
+**Request**:
+```bash
+curl -X POST https://your-app.com/api/alerts/log \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps=" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organizationId": "uuid-here",
+    "severity": "critical",
+    "accountName": "Marketing Expense",
+    "accountCode": "6000",
+    "budgetAmount": 10000,
+    "actualAmount": 11750,
+    "variance": 1750,
+    "variancePercent": 17.5,
+    "period": "2025-10",
+    "boardId": 123456,
+    "message": "Marketing spend is 17.5% over budget"
+  }'
+```
+
+**Parameters**:
+- `organizationId` (string, required) - Organization UUID
+- `severity` (string, required) - One of: critical, warning, info
+- `accountName` (string, required) - Account name
+- `accountCode` (string, optional) - Account code
+- `budgetAmount` (number, required) - Budgeted amount
+- `actualAmount` (number, required) - Actual amount
+- `variance` (number, required) - Variance amount
+- `variancePercent` (number, required) - Variance percentage
+- `period` (string, required) - Period (YYYY-MM)
+- `boardId` (number, optional) - Monday board ID
+- `message` (string, optional) - Custom alert message
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "alertId": "alert-uuid",
+  "severity": "critical",
+  "accountName": "Marketing Expense",
+  "variancePercent": 17.5,
+  "message": "Marketing Expense is 17.5% over budget",
+  "timestamp": "2025-10-02T12:00:00.000Z"
+}
+```
+
+**GET /api/alerts/log?organizationId=uuid&severity=critical**:
+Retrieve alerts with filtering by severity and period.
+
+**DELETE /api/alerts/log?organizationId=uuid&before=2025-09-01**:
+Clean up old alerts before specified date.
+
+**Error Responses**:
+- `400` - Invalid severity or missing required fields
+- `500` - Alert logging failed
+
+---
+
+### 7. POST /api/reports/log
+
+Logs report generation for tracking and auditing.
+
+**Purpose**: Track all generated reports, delivery status, and recipients.
+
+**Request**:
+```bash
+curl -X POST https://your-app.com/api/reports/log \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps=" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organizationId": "uuid-here",
+    "reportType": "monthly",
+    "period": "2025-10",
+    "status": "sent",
+    "sentTo": ["cfo@acme.com", "finance@acme.com"],
+    "fileSize": 2456789,
+    "boardIds": [123456],
+    "includeCharts": true,
+    "includeInsights": true
+  }'
+```
+
+**Parameters**:
+- `organizationId` (string, required) - Organization UUID
+- `reportType` (string, required) - One of: monthly, quarterly, annual, custom
+- `period` (string, required) - Report period
+- `status` (string, required) - One of: generated, sent, failed
+- `sentTo` (string[], optional) - Recipient email addresses
+- `fileSize` (number, optional) - PDF size in bytes
+- `boardIds` (number[], optional) - Monday boards included
+- `includeCharts` (boolean, optional) - Charts included?
+- `includeInsights` (boolean, optional) - Insights included?
+- `errorMessage` (string, optional) - Error details if status is 'failed'
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "reportLogId": "log-uuid",
+  "organizationId": "uuid-here",
+  "reportType": "monthly",
+  "period": "2025-10",
+  "status": "sent",
+  "sentTo": ["cfo@acme.com", "finance@acme.com"],
+  "recipientCount": 2,
+  "timestamp": "2025-10-02T12:00:00.000Z",
+  "message": "📧 Report sent to 2 recipient(s)"
+}
+```
+
+**GET /api/reports/log?organizationId=uuid&reportType=monthly**:
+Retrieve report logs with filtering.
+
+**DELETE /api/reports/log?organizationId=uuid&before=2025-09-01**:
+Clean up old report logs.
+
+**Error Responses**:
+- `400` - Invalid reportType or status
+- `500` - Report logging failed
+
+---
+
+### 8. GET /api/organizations/all
+
+Returns all organizations for batch operations and report generation.
+
+**Purpose**: Get complete organization list with billing emails for monthly reports.
+
+**Request**:
+```bash
+curl -X GET "https://your-app.com/api/organizations/all?active=true" \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps="
+```
+
+**Query Parameters**:
+- `active` (boolean, optional, default: true) - Filter by active status
+
+**Response** (200 OK):
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "uuid-here",
+      "name": "Acme Corp",
+      "mondayAccountId": 12345,
+      "quickbooksRealmId": "67890",
+      "billingEmail": "billing@acme.com",
+      "subscriptionTier": "professional",
+      "subscriptionStatus": "active",
+      "settings": {...},
+      "active": true,
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-10-02T12:00:00.000Z"
+    }
+  ],
+  "count": 1,
+  "summary": {
+    "total": 1,
+    "active": 1,
+    "inactive": 0,
+    "withQuickBooks": 1,
+    "withoutQuickBooks": 0,
+    "withBillingEmail": 1,
+    "withoutBillingEmail": 0
+  },
+  "filters": {
+    "activeOnly": true
+  },
+  "timestamp": "2025-10-02T12:00:00.000Z"
+}
+```
+
+**POST /api/organizations/all** (Bulk Update):
+```bash
+curl -X POST https://your-app.com/api/organizations/all \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps=" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "updates": [
+      {
+        "id": "uuid-1",
+        "billingEmail": "new-email@acme.com"
+      },
+      {
+        "id": "uuid-2",
+        "active": false
+      }
+    ]
+  }'
+```
+
+**Error Responses**:
+- `400` - Invalid parameters
+- `500` - Query failed
+
+---
+
+## 📊 Complete API Endpoint Summary
+
+| Endpoint | Method | Purpose | Key Features |
+|----------|--------|---------|--------------|
+| `/api/organizations/active` | GET | Get synced orgs | QB + Monday connected |
+| `/api/organizations/all` | GET | Get all orgs | Billing emails, categorization |
+| `/api/sync/quickbooks` | POST | Sync QB data | P&L fetch, cache, upsert |
+| `/api/variance/calculate-full` | POST | Calculate variances | Cache, insights, Monday update |
+| `/api/auth/quickbooks/refresh` | POST | Refresh QB token | Auto-refresh, 1hr expiry |
+| `/api/reports/monthly` | POST | Generate report | PDF structure, charts, insights |
+| `/api/alerts/log` | POST | Log alerts | Severity tracking, audit trail |
+| `/api/reports/log` | POST | Log reports | Delivery tracking, recipients |
+
+## 🔄 n8n Workflow Integration Examples
+
+### Token Refresh Workflow (Scheduled - Every 45 minutes)
+
+```javascript
+// 1. Get Active Organizations
+GET /api/organizations/active
+
+// 2. For each org where tokenExpiresAt < now + 15 minutes
+//    Refresh token
+POST /api/auth/quickbooks/refresh
+{
+  "organizationId": "{{org.id}}"
+}
+
+// 3. Log success/failure
+// 4. Send alert if refresh fails
+```
+
+### Monthly Report Generation (Scheduled - 1st of month)
+
+```javascript
+// 1. Get all organizations with billing email
+GET /api/organizations/all?active=true
+
+// 2. For each org
+//    Generate monthly report
+POST /api/reports/monthly
+{
+  "organizationId": "{{org.id}}",
+  "period": "{{lastMonth}}",
+  "includeCharts": true,
+  "includeInsights": true
+}
+
+// 3. Send PDF to billing email
+// (Using email node with PDF attachment)
+
+// 4. Log report delivery
+POST /api/reports/log
+{
+  "organizationId": "{{org.id}}",
+  "reportType": "monthly",
+  "period": "{{lastMonth}}",
+  "status": "sent",
+  "sentTo": ["{{org.billingEmail}}"]
+}
+```
+
+### Critical Variance Alerting (Triggered by variance calc)
+
+```javascript
+// 1. After variance calculation
+//    Check for critical variances
+
+// 2. For each critical variance
+POST /api/alerts/log
+{
+  "organizationId": "{{org.id}}",
+  "severity": "critical",
+  "accountName": "{{variance.accountName}}",
+  "variance": {{variance.variance}},
+  "variancePercent": {{variance.variancePercent}},
+  "period": "{{period}}"
+}
+
+// 3. Send Slack/email notification
+// 4. Update Monday board status
+```
+
+---
+
+## 🧪 Extended Testing
+
+### Test Token Refresh
+
+```bash
+# Check token expiry
+psql $DATABASE_URL -c "SELECT id, monday_account_name, quickbooks_token_expires_at FROM organizations WHERE id = 'your-org-uuid';"
+
+# Refresh token
+curl -X POST https://your-app.com/api/auth/quickbooks/refresh \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps=" \
+  -H "Content-Type: application/json" \
+  -d '{"organizationId":"your-org-uuid"}' | jq
+
+# Verify new expiry
+psql $DATABASE_URL -c "SELECT quickbooks_token_expires_at FROM organizations WHERE id = 'your-org-uuid';"
+```
+
+### Test Report Generation
+
+```bash
+# Generate report
+curl -X POST https://your-app.com/api/reports/monthly \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps=" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organizationId":"your-org-uuid",
+    "period":"2025-10",
+    "includeCharts":true,
+    "includeInsights":true
+  }' | jq '.reportData.summary'
+
+# List available reports
+curl -X GET "https://your-app.com/api/reports/monthly?organizationId=your-org-uuid" \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps=" | jq '.periods'
+```
+
+### Test Alert Logging
+
+```bash
+# Log critical alert
+curl -X POST https://your-app.com/api/alerts/log \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps=" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "organizationId":"your-org-uuid",
+    "severity":"critical",
+    "accountName":"Marketing",
+    "budgetAmount":10000,
+    "actualAmount":11750,
+    "variance":1750,
+    "variancePercent":17.5,
+    "period":"2025-10"
+  }' | jq
+
+# Retrieve critical alerts
+curl -X GET "https://your-app.com/api/alerts/log?organizationId=your-org-uuid&severity=critical" \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps=" | jq '.count'
+```
+
+### Test Organization Listing
+
+```bash
+# Get all active orgs
+curl -X GET "https://your-app.com/api/organizations/all?active=true" \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps=" | jq '.summary'
+
+# Bulk update billing emails
+curl -X POST https://your-app.com/api/organizations/all \
+  -H "X-API-Key: 7YCV0vazDSwvro4HuR7rKQQ67lImK2H5rfQ9jRCnUps=" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "updates": [
+      {
+        "id":"org-uuid-1",
+        "billingEmail":"updated@email.com"
+      }
+    ]
+  }' | jq '.summary'
+```
+
+---
+
+**Last Updated**: 2025-10-02
+**API Version**: 1.1.0
+**Total Endpoints**: 8 (GET: 3, POST: 5, DELETE: 2)
+**Status**: Production Ready ✅
