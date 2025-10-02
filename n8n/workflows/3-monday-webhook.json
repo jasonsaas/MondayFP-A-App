@@ -1,0 +1,594 @@
+{
+  "name": "Monday.com Webhook - Real-time Updates",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "monday-webhook",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Monday Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "webhookId": "monday-webhook-handler"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "webhook-body",
+              "name": "payload",
+              "value": "={{ JSON.parse($json.body) }}",
+              "type": "object"
+            },
+            {
+              "id": "webhook-signature",
+              "name": "signature",
+              "value": "={{ $json.headers['authorization'] }}",
+              "type": "string"
+            },
+            {
+              "id": "webhook-raw",
+              "name": "rawBody",
+              "value": "={{ $json.body }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "parse-webhook",
+      "name": "Parse Webhook Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/webhooks/monday/verify",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"signature\": \"{{ $json.signature }}\",\n  \"body\": \"{{ $json.rawBody }}\"\n}",
+        "options": {}
+      },
+      "id": "verify-signature",
+      "name": "Verify Signature",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [690, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "app-api-key",
+          "name": "FP&A App API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "signature-valid",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-signature",
+      "name": "Signature Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "event-type",
+              "name": "eventType",
+              "value": "={{ $('Parse Webhook Data').item.json.payload.event.type }}",
+              "type": "string"
+            },
+            {
+              "id": "board-id",
+              "name": "boardId",
+              "value": "={{ $('Parse Webhook Data').item.json.payload.event.boardId }}",
+              "type": "number"
+            },
+            {
+              "id": "item-id",
+              "name": "itemId",
+              "value": "={{ $('Parse Webhook Data').item.json.payload.event.pulseId }}",
+              "type": "number"
+            },
+            {
+              "id": "column-id",
+              "name": "columnId",
+              "value": "={{ $('Parse Webhook Data').item.json.payload.event.columnId }}",
+              "type": "string"
+            },
+            {
+              "id": "column-value",
+              "name": "columnValue",
+              "value": "={{ $('Parse Webhook Data').item.json.payload.event.value }}",
+              "type": "string"
+            },
+            {
+              "id": "user-id",
+              "name": "userId",
+              "value": "={{ $('Parse Webhook Data').item.json.payload.event.userId }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-event-data",
+      "name": "Extract Event Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-relevant-event",
+              "leftValue": "={{ $json.eventType }}",
+              "rightValue": "change_column_value,create_pulse,update_pulse",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-event-type",
+      "name": "Is Relevant Event?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1350, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/monday/boards/{{$json.boardId}}/organization",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-organization",
+      "name": "Get Organization",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1570, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "app-api-key",
+          "name": "FP&A App API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "org-id-webhook",
+              "name": "organizationId",
+              "value": "={{ $json.organizationId }}",
+              "type": "string"
+            },
+            {
+              "id": "board-id-webhook",
+              "name": "boardId",
+              "value": "={{ $('Extract Event Data').item.json.boardId }}",
+              "type": "number"
+            },
+            {
+              "id": "period-webhook",
+              "name": "period",
+              "value": "={{ $now.format('yyyy-MM') }}",
+              "type": "string"
+            },
+            {
+              "id": "trigger-source",
+              "name": "triggerSource",
+              "value": "webhook",
+              "type": "string"
+            },
+            {
+              "id": "event-details",
+              "name": "eventDetails",
+              "value": "={{ { type: $('Extract Event Data').item.json.eventType, itemId: $('Extract Event Data').item.json.itemId, columnId: $('Extract Event Data').item.json.columnId } }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-recalc-data",
+      "name": "Prepare Recalculation",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1790, 100]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/variance/calculate",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"organizationId\": \"{{ $json.organizationId }}\",\n  \"boardId\": {{ $json.boardId }},\n  \"period\": \"{{ $json.period }}\",\n  \"options\": {\n    \"generateInsights\": true,\n    \"syncToMonday\": true,\n    \"notifyCritical\": false,\n    \"triggerSource\": \"webhook\"\n  },\n  \"metadata\": {{ JSON.stringify($json.eventDetails) }}\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "recalculate-variance",
+      "name": "Recalculate Variance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2010, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "app-api-key",
+          "name": "FP&A App API Key"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success-message",
+              "name": "message",
+              "value": "=Variance recalculated successfully for board {{ $('Extract Event Data').item.json.boardId }}",
+              "type": "string"
+            },
+            {
+              "id": "variance-count",
+              "name": "varianceCount",
+              "value": "={{ $json.totalVariances }}",
+              "type": "number"
+            },
+            {
+              "id": "processing-time",
+              "name": "processingTimeMs",
+              "value": "={{ $json.processingTime }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-success",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [2230, 100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, message: 'Webhook processed', data: $json } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2450, 100]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "skip-message",
+              "name": "message",
+              "value": "=Event type {{ $('Extract Event Data').item.json.eventType }} - no action needed",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-skip",
+      "name": "Log Skipped Event",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1570, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, message: 'Webhook received but not processed', reason: 'Event type not relevant' } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond-skip",
+      "name": "Respond Skipped",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1790, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "invalid-sig",
+              "name": "error",
+              "value": "Invalid webhook signature",
+              "type": "string"
+            },
+            {
+              "id": "sig-received",
+              "name": "signatureReceived",
+              "value": "={{ $('Parse Webhook Data').item.json.signature }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-invalid",
+      "name": "Log Invalid Signature",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1130, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { success: false, error: 'Invalid signature' } }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "respond-invalid",
+      "name": "Respond Unauthorized",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1350, 400]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/webhooks/log",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source\": \"monday_webhook\",\n  \"event\": \"{{ $('Extract Event Data').item.json.eventType }}\",\n  \"boardId\": {{ $('Extract Event Data').item.json.boardId }},\n  \"itemId\": {{ $('Extract Event Data').item.json.itemId }},\n  \"status\": \"{{ $('Recalculate Variance').item.json.status || 'error' }}\",\n  \"metadata\": {{ JSON.stringify($json) }}\n}",
+        "options": {}
+      },
+      "id": "log-webhook-event",
+      "name": "Log Webhook Event",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2230, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "app-api-key",
+          "name": "FP&A App API Key"
+        }
+      },
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Monday Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Webhook Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Webhook Data": {
+      "main": [
+        [
+          {
+            "node": "Verify Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Signature": {
+      "main": [
+        [
+          {
+            "node": "Signature Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Signature Valid?": {
+      "main": [
+        [
+          {
+            "node": "Extract Event Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Invalid Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Event Data": {
+      "main": [
+        [
+          {
+            "node": "Is Relevant Event?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Relevant Event?": {
+      "main": [
+        [
+          {
+            "node": "Get Organization",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Skipped Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Organization": {
+      "main": [
+        [
+          {
+            "node": "Prepare Recalculation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Recalculation": {
+      "main": [
+        [
+          {
+            "node": "Recalculate Variance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recalculate Variance": {
+      "main": [
+        [
+          {
+            "node": "Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Success": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Webhook Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Skipped Event": {
+      "main": [
+        [
+          {
+            "node": "Respond Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Invalid Signature": {
+      "main": [
+        [
+          {
+            "node": "Respond Unauthorized",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "any",
+    "errorWorkflow": "error-handler-workflow"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Monday.com",
+      "id": "monday-tag"
+    },
+    {
+      "name": "Webhooks",
+      "id": "webhook-tag"
+    },
+    {
+      "name": "Real-time",
+      "id": "realtime-tag"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-02T00:00:00.000Z",
+  "versionId": "1"
+}

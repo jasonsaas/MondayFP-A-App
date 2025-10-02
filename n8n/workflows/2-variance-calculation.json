@@ -1,0 +1,556 @@
+{
+  "name": "Variance Calculation - Auto Trigger",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule-hourly",
+      "name": "Every Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/organizations/active",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-orgs",
+      "name": "Get Organizations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [470, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "app-api-key",
+          "name": "FP&A App API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "organizations",
+        "options": {}
+      },
+      "id": "split-orgs-variance",
+      "name": "Split Organizations",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-qb",
+              "leftValue": "={{ $json.quickbooksRealmId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "settings-enabled",
+              "leftValue": "={{ $json.settings?.syncFrequency }}",
+              "rightValue": "realtime,hourly",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-variance-enabled",
+      "name": "Variance Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/monday/boards",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "specifyQuery": "queryParametersUi",
+        "queryParametersUi": {
+          "parameter": [
+            {
+              "name": "organizationId",
+              "value": "={{ $json.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-monday-boards",
+      "name": "Get Monday Boards",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1130, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "app-api-key",
+          "name": "FP&A App API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "boards",
+        "options": {}
+      },
+      "id": "split-boards",
+      "name": "Split Boards",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [1350, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "org-id-var",
+              "name": "organizationId",
+              "value": "={{ $('Variance Enabled?').item.json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "board-id-var",
+              "name": "boardId",
+              "value": "={{ $json.id }}",
+              "type": "number"
+            },
+            {
+              "id": "board-name",
+              "name": "boardName",
+              "value": "={{ $json.name }}",
+              "type": "string"
+            },
+            {
+              "id": "period-current",
+              "name": "period",
+              "value": "={{ $now.format('yyyy-MM') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-variance-data",
+      "name": "Prepare Variance Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1570, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/variance/calculate",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"organizationId\": \"{{ $json.organizationId }}\",\n  \"boardId\": {{ $json.boardId }},\n  \"period\": \"{{ $json.period }}\",\n  \"options\": {\n    \"generateInsights\": true,\n    \"syncToMonday\": true,\n    \"notifyCritical\": true\n  }\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "calculate-variance",
+      "name": "Calculate Variance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1790, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "app-api-key",
+          "name": "FP&A App API Key"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "critical-count",
+              "leftValue": "={{ $json.criticalCount }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-critical",
+      "name": "Has Critical Variances?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2010, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "critical-org",
+              "name": "organizationId",
+              "value": "={{ $('Prepare Variance Data').item.json.organizationId }}",
+              "type": "string"
+            },
+            {
+              "id": "critical-board",
+              "name": "boardName",
+              "value": "={{ $('Prepare Variance Data').item.json.boardName }}",
+              "type": "string"
+            },
+            {
+              "id": "critical-details",
+              "name": "criticalInsights",
+              "value": "={{ $json.results?.insights?.filter(i => i.severity === 'critical').map(i => i.message).join('\\n• ') }}",
+              "type": "string"
+            },
+            {
+              "id": "critical-total",
+              "name": "criticalCount",
+              "value": "={{ $json.criticalCount }}",
+              "type": "number"
+            },
+            {
+              "id": "total-variance",
+              "name": "totalVariance",
+              "value": "=${{ Number($json.totalVariance).toFixed(2) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-alert",
+      "name": "Prepare Alert Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [2230, 100]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"🚨 Critical Budget Variances Detected\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"🚨 Critical Budget Variances\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Board:*\\n{{ $json.boardName }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Critical Items:*\\n{{ $json.criticalCount }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Total Variance:*\\n${{ $json.totalVariance }}\"\n        }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Issues:*\\n• {{ $json.criticalInsights }}\"\n      }\n    },\n    {\n      \"type\": \"actions\",\n      \"elements\": [\n        {\n          \"type\": \"button\",\n          \"text\": {\n            \"type\": \"plain_text\",\n            \"text\": \"View Details\"\n          },\n          \"url\": \"{{$env.APP_URL}}/variance/{{ $json.organizationId }}\"\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "send-critical-alert",
+      "name": "Send Critical Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2450, 100],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "normal-result",
+              "name": "message",
+              "value": "=Variance calculated for {{ $('Prepare Variance Data').item.json.boardName }} - No critical issues",
+              "type": "string"
+            },
+            {
+              "id": "warning-count",
+              "name": "warningCount",
+              "value": "={{ $('Calculate Variance').item.json.warningCount }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-normal",
+      "name": "Log Normal Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [2230, 300]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "merge-results",
+      "name": "Merge All Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2670, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "summary-total",
+              "name": "totalCalculations",
+              "value": "={{ $input.all().length }}",
+              "type": "number"
+            },
+            {
+              "id": "summary-critical",
+              "name": "totalCritical",
+              "value": "={{ $input.all().filter(item => item.json.criticalCount > 0).length }}",
+              "type": "number"
+            },
+            {
+              "id": "summary-complete",
+              "name": "completedAt",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-summary",
+      "name": "Create Summary",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [2890, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "skip-message",
+              "name": "message",
+              "value": "Organization skipped - variance calculation not enabled or QuickBooks not connected",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "skip-org",
+      "name": "Skip Organization",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1130, 400]
+    }
+  ],
+  "connections": {
+    "Every Hour": {
+      "main": [
+        [
+          {
+            "node": "Get Organizations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Organizations": {
+      "main": [
+        [
+          {
+            "node": "Split Organizations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Organizations": {
+      "main": [
+        [
+          {
+            "node": "Variance Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Variance Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Get Monday Boards",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Organization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Monday Boards": {
+      "main": [
+        [
+          {
+            "node": "Split Boards",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Boards": {
+      "main": [
+        [
+          {
+            "node": "Prepare Variance Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Variance Data": {
+      "main": [
+        [
+          {
+            "node": "Calculate Variance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Variance": {
+      "main": [
+        [
+          {
+            "node": "Has Critical Variances?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Critical Variances?": {
+      "main": [
+        [
+          {
+            "node": "Prepare Alert Data",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Normal Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Alert Data": {
+      "main": [
+        [
+          {
+            "node": "Send Critical Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Critical Alert": {
+      "main": [
+        [
+          {
+            "node": "Merge All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Normal Result": {
+      "main": [
+        [
+          {
+            "node": "Merge All Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge All Results": {
+      "main": [
+        [
+          {
+            "node": "Create Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-handler-workflow"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Variance",
+      "id": "variance-tag"
+    },
+    {
+      "name": "Alerts",
+      "id": "alerts-tag"
+    },
+    {
+      "name": "Production",
+      "id": "prod-tag"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-02T00:00:00.000Z",
+  "versionId": "1"
+}

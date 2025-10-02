@@ -1,0 +1,527 @@
+{
+  "name": "Error Handler - Global",
+  "nodes": [
+    {
+      "parameters": {
+        "keepOnlySet": true,
+        "values": {
+          "string": [
+            {
+              "name": "workflowId",
+              "value": "={{ $json.workflow.id }}"
+            },
+            {
+              "name": "workflowName",
+              "value": "={{ $json.workflow.name }}"
+            },
+            {
+              "name": "executionId",
+              "value": "={{ $json.execution.id }}"
+            },
+            {
+              "name": "errorNode",
+              "value": "={{ $json.execution.lastNodeExecuted }}"
+            },
+            {
+              "name": "errorMessage",
+              "value": "={{ $json.execution.error.message }}"
+            },
+            {
+              "name": "errorStack",
+              "value": "={{ $json.execution.error.stack }}"
+            },
+            {
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}"
+            },
+            {
+              "name": "executionMode",
+              "value": "={{ $json.execution.mode }}"
+            }
+          ],
+          "number": [
+            {
+              "name": "retryNumber",
+              "value": "={{ $json.execution.retryOf ? 1 : 0 }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-error-data",
+      "name": "Extract Error Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "is-critical",
+              "leftValue": "={{ $json.errorMessage }}",
+              "rightValue": "ECONNREFUSED,timeout,authentication failed,rate limit,database",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "check-severity",
+      "name": "Is Critical Error?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "severity",
+              "name": "severity",
+              "value": "critical",
+              "type": "string"
+            },
+            {
+              "id": "emoji",
+              "name": "emoji",
+              "value": "🚨",
+              "type": "string"
+            },
+            {
+              "id": "color",
+              "name": "color",
+              "value": "#dc2626",
+              "type": "string"
+            },
+            {
+              "id": "should-page",
+              "name": "shouldPage",
+              "value": "={{ true }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mark-critical",
+      "name": "Mark Critical",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "severity-warning",
+              "name": "severity",
+              "value": "warning",
+              "type": "string"
+            },
+            {
+              "id": "emoji-warning",
+              "name": "emoji",
+              "value": "⚠️",
+              "type": "string"
+            },
+            {
+              "id": "color-warning",
+              "name": "color",
+              "value": "#f59e0b",
+              "type": "string"
+            },
+            {
+              "id": "should-page-warning",
+              "name": "shouldPage",
+              "value": "={{ false }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mark-warning",
+      "name": "Mark Warning",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [910, 400]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "merge-severity",
+      "name": "Merge Severity",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [1130, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "formatted-title",
+              "name": "slackTitle",
+              "value": "={{ $json.emoji }} n8n Workflow Error: {{ $('Extract Error Data').item.json.workflowName }}",
+              "type": "string"
+            },
+            {
+              "id": "formatted-message",
+              "name": "slackMessage",
+              "value": "=*Workflow:* {{ $('Extract Error Data').item.json.workflowName }}\n*Node:* {{ $('Extract Error Data').item.json.errorNode }}\n*Error:* {{ $('Extract Error Data').item.json.errorMessage }}\n*Time:* {{ $('Extract Error Data').item.json.timestamp }}\n*Execution ID:* {{ $('Extract Error Data').item.json.executionId }}\n*Mode:* {{ $('Extract Error Data').item.json.executionMode }}",
+              "type": "string"
+            },
+            {
+              "id": "execution-url",
+              "name": "executionUrl",
+              "value": "={{ $env.N8N_URL }}/workflow/{{ $('Extract Error Data').item.json.workflowId }}/executions/{{ $('Extract Error Data').item.json.executionId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "format-notification",
+      "name": "Format Notification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1350, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"{{ $json.slackTitle }}\",\n  \"blocks\": [\n    {\n      \"type\": \"header\",\n      \"text\": {\n        \"type\": \"plain_text\",\n        \"text\": \"{{ $json.slackTitle }}\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"{{ $json.slackMessage }}\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Severity:*\\n{{ $('Merge Severity').item.json.severity }}\"\n        },\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Retry:*\\n{{ $('Extract Error Data').item.json.retryNumber }}\"\n        }\n      ]\n    },\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*Stack Trace:*\\n```{{ $('Extract Error Data').item.json.errorStack.substring(0, 500) }}...```\"\n      }\n    },\n    {\n      \"type\": \"actions\",\n      \"elements\": [\n        {\n          \"type\": \"button\",\n          \"text\": {\n            \"type\": \"plain_text\",\n            \"text\": \"View Execution\"\n          },\n          \"url\": \"{{ $json.executionUrl }}\",\n          \"style\": \"{{ $('Merge Severity').item.json.severity === 'critical' ? 'danger' : 'primary' }}\"\n        }\n      ]\n    }\n  ],\n  \"attachments\": [\n    {\n      \"color\": \"{{ $('Merge Severity').item.json.color }}\",\n      \"fields\": [\n        {\n          \"title\": \"Workflow ID\",\n          \"value\": \"{{ $('Extract Error Data').item.json.workflowId }}\",\n          \"short\": true\n        },\n        {\n          \"title\": \"Execution ID\",\n          \"value\": \"{{ $('Extract Error Data').item.json.executionId }}\",\n          \"short\": true\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "send-slack",
+      "name": "Send Slack Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1570, 300],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/errors/log",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"source\": \"n8n\",\n  \"workflowId\": \"{{ $('Extract Error Data').item.json.workflowId }}\",\n  \"workflowName\": \"{{ $('Extract Error Data').item.json.workflowName }}\",\n  \"executionId\": \"{{ $('Extract Error Data').item.json.executionId }}\",\n  \"errorNode\": \"{{ $('Extract Error Data').item.json.errorNode }}\",\n  \"errorMessage\": \"{{ $('Extract Error Data').item.json.errorMessage }}\",\n  \"errorStack\": \"{{ $('Extract Error Data').item.json.errorStack }}\",\n  \"severity\": \"{{ $('Merge Severity').item.json.severity }}\",\n  \"timestamp\": \"{{ $('Extract Error Data').item.json.timestamp }}\",\n  \"metadata\": {\n    \"executionMode\": \"{{ $('Extract Error Data').item.json.executionMode }}\",\n    \"retryNumber\": {{ $('Extract Error Data').item.json.retryNumber }}\n  }\n}",
+        "options": {}
+      },
+      "id": "log-to-app",
+      "name": "Log to Application",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1790, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "app-api-key",
+          "name": "FP&A App API Key"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "should-page",
+              "leftValue": "={{ $('Merge Severity').item.json.shouldPage }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-paging",
+      "name": "Should Page?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2010, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.PAGERDUTY_WEBHOOK_URL}}",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"routing_key\": \"{{ $env.PAGERDUTY_ROUTING_KEY }}\",\n  \"event_action\": \"trigger\",\n  \"payload\": {\n    \"summary\": \"{{ $('Format Notification').item.json.slackTitle }}\",\n    \"severity\": \"critical\",\n    \"source\": \"n8n\",\n    \"component\": \"{{ $('Extract Error Data').item.json.workflowName }}\",\n    \"group\": \"workflow-errors\",\n    \"class\": \"{{ $('Extract Error Data').item.json.errorNode }}\",\n    \"custom_details\": {\n      \"workflow_id\": \"{{ $('Extract Error Data').item.json.workflowId }}\",\n      \"execution_id\": \"{{ $('Extract Error Data').item.json.executionId }}\",\n      \"error_message\": \"{{ $('Extract Error Data').item.json.errorMessage }}\",\n      \"timestamp\": \"{{ $('Extract Error Data').item.json.timestamp }}\"\n    }\n  },\n  \"links\": [\n    {\n      \"href\": \"{{ $('Format Notification').item.json.executionUrl }}\",\n      \"text\": \"View Execution in n8n\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "send-pagerduty",
+      "name": "Send PagerDuty Alert",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2230, 200],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "no-page-message",
+              "name": "message",
+              "value": "Error logged but not critical - no page sent",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "skip-paging",
+      "name": "Skip Paging",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [2230, 400]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineAll",
+        "options": {}
+      },
+      "id": "merge-results",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2450, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "final-status",
+              "name": "status",
+              "value": "completed",
+              "type": "string"
+            },
+            {
+              "id": "final-message",
+              "name": "message",
+              "value": "=Error handling completed for {{ $('Extract Error Data').item.json.workflowName }}",
+              "type": "string"
+            },
+            {
+              "id": "notifications-sent",
+              "name": "notificationsSent",
+              "value": "={{ {\n  slack: true,\n  application: true,\n  pagerduty: $('Merge Severity').item.json.shouldPage\n} }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-summary",
+      "name": "Create Summary",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [2670, 300]
+    }
+  ],
+  "connections": {
+    "Extract Error Data": {
+      "main": [
+        [
+          {
+            "node": "Is Critical Error?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Critical Error?": {
+      "main": [
+        [
+          {
+            "node": "Mark Critical",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Warning",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Critical": {
+      "main": [
+        [
+          {
+            "node": "Merge Severity",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Warning": {
+      "main": [
+        [
+          {
+            "node": "Merge Severity",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Severity": {
+      "main": [
+        [
+          {
+            "node": "Format Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Notification": {
+      "main": [
+        [
+          {
+            "node": "Send Slack Alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Slack Alert": {
+      "main": [
+        [
+          {
+            "node": "Log to Application",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log to Application": {
+      "main": [
+        [
+          {
+            "node": "Should Page?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Page?": {
+      "main": [
+        [
+          {
+            "node": "Send PagerDuty Alert",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Paging",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send PagerDuty Alert": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Paging": {
+      "main": [
+        [
+          {
+            "node": "Merge Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Results": {
+      "main": [
+        [
+          {
+            "node": "Create Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "Error Handling",
+      "id": "error-tag"
+    },
+    {
+      "name": "Monitoring",
+      "id": "monitoring-tag"
+    },
+    {
+      "name": "Critical",
+      "id": "critical-tag"
+    }
+  ],
+  "triggerCount": 0,
+  "updatedAt": "2025-10-02T00:00:00.000Z",
+  "versionId": "1"
+}

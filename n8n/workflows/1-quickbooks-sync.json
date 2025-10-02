@@ -1,0 +1,486 @@
+{
+  "name": "QuickBooks Sync - Scheduled",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 4
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Every 4 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/organizations/active",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "id": "get-active-orgs",
+      "name": "Get Active Organizations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [470, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "app-api-key",
+          "name": "FP&A App API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "org-exists",
+              "leftValue": "={{ $json.organizations }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-orgs-exist",
+      "name": "Has Active Orgs?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "organizations",
+        "options": {}
+      },
+      "id": "split-orgs",
+      "name": "Split Organizations",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "org-id",
+              "name": "organizationId",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "org-name",
+              "name": "organizationName",
+              "value": "={{ $json.mondayAccountName }}",
+              "type": "string"
+            },
+            {
+              "id": "qb-realm",
+              "name": "quickbooksRealmId",
+              "value": "={{ $json.quickbooksRealmId }}",
+              "type": "string"
+            },
+            {
+              "id": "last-sync",
+              "name": "lastSyncAt",
+              "value": "={{ $json.lastSyncAt }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-sync-data",
+      "name": "Prepare Sync Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.APP_URL}}/api/sync/quickbooks",
+        "method": "POST",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"organizationId\": \"{{ $json.organizationId }}\",\n  \"syncType\": \"incremental\"\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "trigger-qb-sync",
+      "name": "Trigger QuickBooks Sync",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1350, 200],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "app-api-key",
+          "name": "FP&A App API Key"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "sync-success",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "success",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-sync-status",
+      "name": "Sync Successful?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1570, 200]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "success-log",
+              "name": "message",
+              "value": "=QuickBooks sync successful for {{ $('Prepare Sync Data').item.json.organizationName }}",
+              "type": "string"
+            },
+            {
+              "id": "items-synced",
+              "name": "itemsSynced",
+              "value": "={{ $json.itemsProcessed }}",
+              "type": "number"
+            },
+            {
+              "id": "sync-time",
+              "name": "syncTime",
+              "value": "={{ $json.duration }}ms",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-success",
+      "name": "Log Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1790, 100]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "error-log",
+              "name": "message",
+              "value": "=QuickBooks sync FAILED for {{ $('Prepare Sync Data').item.json.organizationName }}",
+              "type": "string"
+            },
+            {
+              "id": "error-detail",
+              "name": "error",
+              "value": "={{ $json.errorMessage || 'Unknown error' }}",
+              "type": "string"
+            },
+            {
+              "id": "org-id-error",
+              "name": "organizationId",
+              "value": "={{ $('Prepare Sync Data').item.json.organizationId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-error",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [1790, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-errors",
+              "leftValue": "={{ $input.all().filter(item => item.json.error).length }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-for-errors",
+      "name": "Any Errors?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2010, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.SLACK_WEBHOOK_URL}}",
+        "method": "POST",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"text\": \"⚠️ QuickBooks Sync Errors Detected\",\n  \"blocks\": [\n    {\n      \"type\": \"section\",\n      \"text\": {\n        \"type\": \"mrkdwn\",\n        \"text\": \"*QuickBooks Sync Failures*\\n{{ $input.all().filter(item => item.json.error).length }} organizations failed to sync.\"\n      }\n    },\n    {\n      \"type\": \"section\",\n      \"fields\": [\n        {\n          \"type\": \"mrkdwn\",\n          \"text\": \"*Failed Organizations:*\\n{{ $input.all().filter(item => item.json.error).map(item => `• ${item.json.organizationId}: ${item.json.error}`).join('\\\\n') }}\"\n        }\n      ]\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "notify-slack",
+      "name": "Notify Slack on Errors",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2230, 100],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "no-errors",
+              "name": "message",
+              "value": "All QuickBooks syncs completed successfully",
+              "type": "string"
+            },
+            {
+              "id": "total-synced",
+              "name": "totalOrganizations",
+              "value": "={{ $input.all().length }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-complete",
+      "name": "All Syncs Complete",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [2230, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "no-orgs",
+              "name": "message",
+              "value": "No active organizations found - skipping sync",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "no-orgs-message",
+      "name": "No Organizations",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [910, 400]
+    }
+  ],
+  "connections": {
+    "Every 4 Hours": {
+      "main": [
+        [
+          {
+            "node": "Get Active Organizations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Organizations": {
+      "main": [
+        [
+          {
+            "node": "Has Active Orgs?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Active Orgs?": {
+      "main": [
+        [
+          {
+            "node": "Split Organizations",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Organizations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Organizations": {
+      "main": [
+        [
+          {
+            "node": "Prepare Sync Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Sync Data": {
+      "main": [
+        [
+          {
+            "node": "Trigger QuickBooks Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger QuickBooks Sync": {
+      "main": [
+        [
+          {
+            "node": "Sync Successful?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Successful?": {
+      "main": [
+        [
+          {
+            "node": "Log Success",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Success": {
+      "main": [
+        [
+          {
+            "node": "Any Errors?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "Any Errors?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Errors?": {
+      "main": [
+        [
+          {
+            "node": "Notify Slack on Errors",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "All Syncs Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-handler-workflow"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "QuickBooks",
+      "id": "qb-tag"
+    },
+    {
+      "name": "Sync",
+      "id": "sync-tag"
+    },
+    {
+      "name": "Production",
+      "id": "prod-tag"
+    }
+  ],
+  "triggerCount": 1,
+  "updatedAt": "2025-10-02T00:00:00.000Z",
+  "versionId": "1"
+}
