@@ -1,27 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateApiKey } from '@/app/api/middleware/auth';
-import { getSyncManager } from '@/lib/quickbooks/sync-manager';
-import { QBSyncOptions } from '@/lib/quickbooks/types';
-import { db } from '@/lib/db';
-import { organizations } from '@/lib/db/schema';
+import { db } from '@/db';
+import { organizations, actualItems, syncLogs } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { setCached } from '@/lib/redis';
 
 /**
  * POST /api/sync/quickbooks
  *
- * Trigger QuickBooks data sync
+ * Sync QuickBooks P&L data to actualItems table
  *
  * Request body:
  * {
  *   organizationId: string;
- *   options?: {
- *     syncAccounts?: boolean;
- *     syncPL?: boolean;
- *     syncBalanceSheet?: boolean;
- *     startDate?: string;
- *     endDate?: string;
- *     forceRefresh?: boolean;
- *   }
+ *   period: string; // YYYY-MM format
  * }
  */
 export async function POST(request: NextRequest) {
@@ -29,9 +21,12 @@ export async function POST(request: NextRequest) {
   const authError = validateApiKey(request);
   if (authError) return authError;
 
+  const startTime = Date.now();
+  let syncLogId: string | undefined;
+
   try {
     const body = await request.json();
-    const { organizationId, options } = body;
+    const { organizationId, period } = body;
 
     // Validate required fields
     if (!organizationId) {
@@ -41,10 +36,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify organization exists
-    const org = await db.query.organizations.findFirst({
-      where: eq(organizations.id, organizationId),
-    });
+    if (!period || !/^\d{4}-\d{2}$/.test(period)) {
+      return NextResponse.json(
+        { error: 'period is required in YYYY-MM format' },
+        { status: 400 }
+      );
+    }
+
+    // Get organization
+    const [org] = await db
+      .select()
+      .from(organizations)
+      .where(eq(organizations.id, organizationId))
+      .limit(1);
 
     if (!org) {
       return NextResponse.json(
@@ -54,7 +58,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if QuickBooks is connected
-    if (!org.quickbooksCompanyId) {
+    if (!org.quickbooksRealmId || !org.quickbooksAccessToken) {
       return NextResponse.json(
         {
           error: 'QuickBooks not connected',
@@ -64,275 +68,208 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get sync manager
-    const syncManager = getSyncManager();
-
-    // Start sync (async - don't wait)
-    console.log(`Starting QuickBooks sync for organization ${organizationId}...`);
-
-    const syncOptions: QBSyncOptions = {
-      syncAccounts: options?.syncAccounts !== false,
-      syncPL: options?.syncPL !== false,
-      syncBalanceSheet: options?.syncBalanceSheet || false,
-      startDate: options?.startDate,
-      endDate: options?.endDate,
-      forceRefresh: options?.forceRefresh || false,
-    };
-
-    // Perform sync
-    const syncStatus = await syncManager.syncAll(organizationId, syncOptions);
-
-    // Save sync status
-    await syncManager.saveSyncStatus(syncStatus);
-
-    return NextResponse.json({
-      success: true,
-      syncId: syncStatus.syncId,
-      status: syncStatus.status,
-      itemsSynced: syncStatus.itemsSynced,
-      errors: syncStatus.errors,
-      message: 'Sync completed successfully',
-    });
-  } catch (error: any) {
-    console.error('QuickBooks sync error:', error);
-
-    // Handle specific error types
-    if (error.code === 'token_expired') {
+    // Check token expiry
+    if (org.quickbooksTokenExpiresAt && new Date(org.quickbooksTokenExpiresAt) < new Date()) {
       return NextResponse.json(
         {
           error: 'QuickBooks token expired',
           message: 'Please reconnect your QuickBooks account',
-          code: 'token_expired',
         },
         { status: 401 }
       );
     }
 
-    if (error.code === 'rate_limit_exceeded') {
-      return NextResponse.json(
-        {
-          error: 'Rate limit exceeded',
-          message: 'Too many requests to QuickBooks API. Please try again later.',
-          code: 'rate_limit_exceeded',
+    // Create sync log entry
+    const [syncLog] = await db
+      .insert(syncLogs)
+      .values({
+        organizationId: org.id,
+        syncType: 'quickbooks_actual',
+        status: 'in_progress',
+        source: 'api',
+        startedAt: new Date(),
+        metadata: { period },
+      })
+      .returning();
+
+    syncLogId = syncLog.id;
+
+    // Parse period
+    const [year, month] = period.split('-').map(Number);
+    const periodStart = new Date(year, month - 1, 1);
+    const periodEnd = new Date(year, month, 0, 23, 59, 59);
+
+    // Fetch P&L from QuickBooks
+    const plResponse = await fetch(
+      `https://sandbox-quickbooks.api.intuit.com/v3/company/${org.quickbooksRealmId}/reports/ProfitAndLoss?start_date=${period}-01&end_date=${period}-${periodEnd.getDate()}&accounting_method=Accrual`,
+      {
+        headers: {
+          Authorization: `Bearer ${org.quickbooksAccessToken}`,
+          Accept: 'application/json',
         },
-        { status: 429 }
-      );
+      }
+    );
+
+    if (!plResponse.ok) {
+      const errorText = await plResponse.text();
+      throw new Error(`QuickBooks API error: ${plResponse.status} - ${errorText}`);
+    }
+
+    const plData = await plResponse.json();
+
+    // Process P&L rows and insert into actualItems
+    const plRows = extractPLRows(plData);
+    let recordsProcessed = 0;
+
+    for (const row of plRows) {
+      await db
+        .insert(actualItems)
+        .values({
+          organizationId: org.id,
+          quickbooksAccountId: row.accountId,
+          accountCode: row.accountCode,
+          accountName: row.accountName,
+          accountType: mapAccountType(row.accountType),
+          accountSubType: row.accountSubType,
+          parentAccountId: row.parentAccountId,
+          amount: row.amount.toString(),
+          period,
+          periodStart,
+          periodEnd,
+          currency: org.settings?.defaultCurrency || 'USD',
+          reportType: 'ProfitAndLoss',
+          transactionCount: row.transactionCount || 0,
+          metadata: {
+            quickbooksData: row.raw,
+            lastSyncedAt: new Date().toISOString(),
+            syncJobId: syncLog.id,
+          },
+        })
+        .onConflictDoUpdate({
+          target: [actualItems.organizationId, actualItems.quickbooksAccountId, actualItems.period],
+          set: {
+            amount: row.amount.toString(),
+            transactionCount: row.transactionCount || 0,
+            updatedAt: new Date(),
+            metadata: {
+              quickbooksData: row.raw,
+              lastSyncedAt: new Date().toISOString(),
+              syncJobId: syncLog.id,
+            },
+          },
+        });
+
+      recordsProcessed++;
+    }
+
+    const duration = Date.now() - startTime;
+
+    // Update sync log
+    await db
+      .update(syncLogs)
+      .set({
+        status: 'completed',
+        completedAt: new Date(),
+        duration,
+        itemsProcessed: recordsProcessed,
+        itemsCreated: recordsProcessed,
+      })
+      .where(eq(syncLogs.id, syncLog.id));
+
+    // Cache the result
+    const cacheKey = `qb:pl:${organizationId}:${period}`;
+    await setCached(cacheKey, plRows, 3600); // 1 hour cache
+
+    console.log(`QuickBooks sync completed: ${recordsProcessed} records for ${period}`);
+
+    return NextResponse.json({
+      success: true,
+      recordsProcessed,
+      period,
+      syncId: syncLog.id,
+      duration,
+      message: 'QuickBooks sync completed successfully',
+    });
+  } catch (error: any) {
+    console.error('QuickBooks sync error:', error);
+
+    // Update sync log with error
+    if (syncLogId) {
+      await db
+        .update(syncLogs)
+        .set({
+          status: 'failed',
+          completedAt: new Date(),
+          duration: Date.now() - startTime,
+          errorMessage: error.message,
+          errorStack: error.stack,
+        })
+        .where(eq(syncLogs.id, syncLogId));
     }
 
     return NextResponse.json(
       {
         error: 'Sync failed',
         message: error.message,
-        code: error.code || 'sync_error',
+        syncId: syncLogId,
       },
       { status: 500 }
     );
   }
 }
 
-/**
- * GET /api/sync/quickbooks
- *
- * Get sync status or check connection
- *
- * Query params:
- * - organizationId: string (required)
- * - syncId?: string (optional - get specific sync status)
- * - action?: 'status' | 'health' (optional)
- */
-export async function GET(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams;
-    const organizationId = searchParams.get('organizationId');
-    const syncId = searchParams.get('syncId');
-    const action = searchParams.get('action');
+// Helper function to extract P&L rows from QuickBooks response
+function extractPLRows(plData: any): any[] {
+  const rows: any[] = [];
 
-    if (!organizationId) {
-      return NextResponse.json(
-        { error: 'organizationId parameter required' },
-        { status: 400 }
-      );
-    }
+  function processRows(rowsData: any[], parentId: string | null = null) {
+    if (!rowsData) return;
 
-    const syncManager = getSyncManager();
+    for (const row of rowsData) {
+      if (row.type === 'Section' || row.type === 'Data') {
+        const colData = row.ColData || [];
+        const accountName = colData[0]?.value || '';
+        const amount = parseFloat(colData[1]?.value || '0');
 
-    // Get specific sync status
-    if (syncId) {
-      const status = await syncManager.getSyncStatus(syncId);
+        if (accountName && amount !== 0) {
+          rows.push({
+            accountId: row.id || `generated-${accountName.toLowerCase().replace(/\s+/g, '-')}`,
+            accountCode: row.code || null,
+            accountName,
+            accountType: row.account_type || 'other',
+            accountSubType: row.account_sub_type || null,
+            parentAccountId: parentId,
+            amount,
+            transactionCount: row.transaction_count || 0,
+            raw: row,
+          });
+        }
 
-      if (!status) {
-        return NextResponse.json(
-          { error: 'Sync not found' },
-          { status: 404 }
-        );
+        // Process child rows recursively
+        if (row.Rows?.Row) {
+          processRows(row.Rows.Row, row.id);
+        }
       }
-
-      return NextResponse.json(status);
     }
-
-    // Health check
-    if (action === 'health') {
-      const health = await syncManager.healthCheck(organizationId);
-
-      return NextResponse.json({
-        connected: health.connected,
-        realmId: health.realmId,
-        error: health.error,
-      });
-    }
-
-    // Get organization sync info
-    const org = await db.query.organizations.findFirst({
-      where: eq(organizations.id, organizationId),
-    });
-
-    if (!org) {
-      return NextResponse.json(
-        { error: 'Organization not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
-      organizationId: org.id,
-      quickbooksConnected: !!org.quickbooksCompanyId,
-      realmId: org.quickbooksCompanyId,
-      lastUpdated: org.updatedAt,
-    });
-  } catch (error: any) {
-    console.error('Sync status error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to get sync status',
-        message: error.message,
-      },
-      { status: 500 }
-    );
   }
+
+  processRows(plData.Rows?.Row || []);
+  return rows;
 }
 
-/**
- * DELETE /api/sync/quickbooks
- *
- * Clear QuickBooks cache
- *
- * Query params:
- * - organizationId: string (required)
- */
-export async function DELETE(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams;
-    const organizationId = searchParams.get('organizationId');
+// Map QuickBooks account type to our enum
+function mapAccountType(qbType: string): 'asset' | 'liability' | 'equity' | 'revenue' | 'expense' | 'other' {
+  const typeMap: Record<string, any> = {
+    Income: 'revenue',
+    Revenue: 'revenue',
+    Expense: 'expense',
+    'Cost of Goods Sold': 'expense',
+    COGS: 'expense',
+    Asset: 'asset',
+    Liability: 'liability',
+    Equity: 'equity',
+  };
 
-    if (!organizationId) {
-      return NextResponse.json(
-        { error: 'organizationId parameter required' },
-        { status: 400 }
-      );
-    }
-
-    // Get organization
-    const org = await db.query.organizations.findFirst({
-      where: eq(organizations.id, organizationId),
-    });
-
-    if (!org || !org.quickbooksCompanyId) {
-      return NextResponse.json(
-        { error: 'QuickBooks not connected' },
-        { status: 404 }
-      );
-    }
-
-    // Clear cache
-    const syncManager = getSyncManager();
-    await syncManager.clearCache(org.quickbooksCompanyId);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Cache cleared successfully',
-    });
-  } catch (error: any) {
-    console.error('Cache clear error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to clear cache',
-        message: error.message,
-      },
-      { status: 500 }
-    );
-  }
+  return typeMap[qbType] || 'other';
 }
 
-/**
- * PATCH /api/sync/quickbooks
- *
- * Incremental sync - sync only changed data since last sync
- *
- * Request body:
- * {
- *   organizationId: string;
- *   lastSyncedAt?: string; // ISO date string
- * }
- */
-export async function PATCH(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const { organizationId, lastSyncedAt } = body;
-
-    if (!organizationId) {
-      return NextResponse.json(
-        { error: 'organizationId is required' },
-        { status: 400 }
-      );
-    }
-
-    const syncManager = getSyncManager();
-
-    // Determine last sync time
-    let lastSync: Date;
-    if (lastSyncedAt) {
-      lastSync = new Date(lastSyncedAt);
-    } else {
-      // Get from organization
-      const org = await db.query.organizations.findFirst({
-        where: eq(organizations.id, organizationId),
-      });
-
-      if (!org) {
-        return NextResponse.json(
-          { error: 'Organization not found' },
-          { status: 404 }
-        );
-      }
-
-      lastSync = org.updatedAt;
-    }
-
-    console.log(`Incremental sync since ${lastSync.toISOString()}...`);
-
-    const syncStatus = await syncManager.incrementalSync(
-      organizationId,
-      lastSync
-    );
-
-    await syncManager.saveSyncStatus(syncStatus);
-
-    return NextResponse.json({
-      success: true,
-      syncId: syncStatus.syncId,
-      status: syncStatus.status,
-      itemsSynced: syncStatus.itemsSynced,
-      errors: syncStatus.errors,
-      message: 'Incremental sync completed',
-    });
-  } catch (error: any) {
-    console.error('Incremental sync error:', error);
-    return NextResponse.json(
-      {
-        error: 'Incremental sync failed',
-        message: error.message,
-      },
-      { status: 500 }
-    );
-  }
-}
