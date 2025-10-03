@@ -110,16 +110,8 @@
   },
   "crons": [
     {
-      "path": "/api/cron/sync-budget",
-      "schedule": "0 */6 * * *"
-    },
-    {
-      "path": "/api/cron/sync-actual",
+      "path": "/api/cron/sync",
       "schedule": "0 */4 * * *"
-    },
-    {
-      "path": "/api/cron/calculate-variance",
-      "schedule": "0 */1 * * *"
     },
     {
       "path": "/api/cron/cleanup-sessions",

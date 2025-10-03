@@ -1,0 +1,417 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "FP&A Platform API",
+    "version": "1.1.0",
+    "description": "API endpoints for n8n integration and variance analysis automation",
+    "contact": {
+      "name": "API Support",
+      "email": "support@yourapp.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Development server"
+    },
+    {
+      "url": "https://your-app.vercel.app",
+      "description": "Production server"
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key",
+        "description": "API key for n8n authentication (N8N_API_KEY)"
+      },
+      "WebhookSignature": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-N8N-Signature",
+        "description": "HMAC-SHA256 webhook signature for verification"
+      }
+    }
+  },
+  "endpoints": [
+    {
+      "name": "Get Active Organizations",
+      "method": "GET",
+      "path": "/api/organizations/active",
+      "description": "Returns organizations with both Monday.com and QuickBooks connected",
+      "authentication": "X-API-Key",
+      "rateLimit": "100 req/min",
+      "parameters": [],
+      "response": {
+        "200": {
+          "description": "Success",
+          "example": {
+            "success": true,
+            "data": [
+              {
+                "id": "uuid",
+                "name": "Acme Corp",
+                "mondayAccountId": 12345,
+                "quickbooksRealmId": "67890",
+                "quickbooksTokenExpiresAt": "2025-10-02T13:00:00.000Z",
+                "settings": {},
+                "active": true
+              }
+            ],
+            "count": 1
+          }
+        }
+      },
+      "n8nConfig": {
+        "nodeType": "HTTP Request",
+        "method": "GET",
+        "url": "{{$env.FPA_API_URL}}/api/organizations/active",
+        "headers": {
+          "X-API-Key": "{{$env.N8N_API_KEY}}"
+        }
+      }
+    },
+    {
+      "name": "Get All Organizations",
+      "method": "GET",
+      "path": "/api/organizations/all",
+      "description": "Returns all organizations with categorization and summary",
+      "authentication": "X-API-Key",
+      "parameters": [
+        {
+          "name": "active",
+          "in": "query",
+          "type": "boolean",
+          "default": "true",
+          "description": "Filter by active status"
+        }
+      ],
+      "response": {
+        "200": {
+          "example": {
+            "success": true,
+            "data": [],
+            "count": 3,
+            "summary": {
+              "total": 3,
+              "active": 3,
+              "inactive": 0,
+              "withQuickBooks": 3,
+              "withBillingEmail": 3
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Sync QuickBooks Data",
+      "method": "POST",
+      "path": "/api/sync/quickbooks",
+      "description": "Syncs QuickBooks P&L data to actualItems table",
+      "authentication": "X-API-Key",
+      "requestBody": {
+        "organizationId": "uuid (required)",
+        "period": "YYYY-MM format (required)"
+      },
+      "response": {
+        "200": {
+          "example": {
+            "success": true,
+            "organizationId": "uuid",
+            "period": "2025-10",
+            "recordsProcessed": 30,
+            "syncLogId": "uuid",
+            "cached": true
+          }
+        }
+      },
+      "n8nConfig": {
+        "nodeType": "HTTP Request",
+        "method": "POST",
+        "url": "{{$env.FPA_API_URL}}/api/sync/quickbooks",
+        "headers": {
+          "X-API-Key": "{{$env.N8N_API_KEY}}",
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "organizationId": "{{$node.GetOrganizations.json.data[0].id}}",
+          "period": "{{$now.format('YYYY-MM')}}"
+        }
+      }
+    },
+    {
+      "name": "Calculate Variance Analysis",
+      "method": "POST",
+      "path": "/api/variance/calculate-full",
+      "description": "Calculates variance analysis with insights and Monday board updates",
+      "authentication": "X-API-Key",
+      "requestBody": {
+        "organizationId": "uuid (required)",
+        "boardId": "number (required)",
+        "period": "YYYY-MM format (required)"
+      },
+      "response": {
+        "200": {
+          "example": {
+            "success": true,
+            "analysis": {
+              "id": "uuid",
+              "results": {
+                "variances": [],
+                "insights": [],
+                "summary": {
+                  "totalBudget": 1000000,
+                  "totalVariance": 125000,
+                  "criticalCount": 3
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Refresh QuickBooks Token",
+      "method": "POST",
+      "path": "/api/auth/quickbooks/refresh",
+      "description": "Refreshes expired QuickBooks OAuth tokens",
+      "authentication": "X-API-Key",
+      "requestBody": {
+        "organizationId": "uuid (required)"
+      },
+      "response": {
+        "200": {
+          "example": {
+            "success": true,
+            "accessToken": "new_token",
+            "expiresAt": "2025-10-02T14:00:00.000Z",
+            "expiresIn": 3600
+          }
+        }
+      },
+      "n8nWorkflow": "Run every 45 minutes to check token expiry and refresh if needed"
+    },
+    {
+      "name": "Generate Monthly Report",
+      "method": "POST",
+      "path": "/api/reports/monthly",
+      "description": "Generates monthly variance PDF report",
+      "authentication": "X-API-Key",
+      "requestBody": {
+        "organizationId": "uuid (required)",
+        "period": "YYYY-MM (required)",
+        "includeCharts": "boolean (optional, default: true)",
+        "includeInsights": "boolean (optional, default: true)"
+      },
+      "response": {
+        "200": {
+          "example": {
+            "success": true,
+            "reportData": {
+              "organization": {},
+              "summary": {},
+              "variances": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Log Variance Alert",
+      "method": "POST",
+      "path": "/api/alerts/log",
+      "description": "Logs variance alerts for tracking",
+      "authentication": "X-API-Key",
+      "requestBody": {
+        "organizationId": "uuid (required)",
+        "severity": "critical|warning|info (required)",
+        "accountName": "string (required)",
+        "variance": "number (required)",
+        "variancePercent": "number (required)",
+        "period": "YYYY-MM (required)"
+      }
+    },
+    {
+      "name": "Log Report Generation",
+      "method": "POST",
+      "path": "/api/reports/log",
+      "description": "Logs report generation and delivery",
+      "authentication": "X-API-Key",
+      "requestBody": {
+        "organizationId": "uuid (required)",
+        "reportType": "monthly|quarterly|annual (required)",
+        "period": "string (required)",
+        "status": "generated|sent|failed (required)",
+        "sentTo": "string[] (optional)"
+      }
+    },
+    {
+      "name": "Variance Alert Webhook",
+      "method": "POST",
+      "path": "/api/webhooks/n8n/variance-alert",
+      "description": "Receives variance alerts from n8n workflows",
+      "authentication": "X-N8N-Signature (HMAC)",
+      "requestBody": {
+        "organizationId": "uuid (required)",
+        "severity": "critical|warning|info (required)",
+        "variances": "array (required)",
+        "period": "YYYY-MM (required)",
+        "boardId": "number (optional)"
+      },
+      "response": {
+        "200": {
+          "example": {
+            "success": true,
+            "alertsLogged": 3,
+            "notificationsQueued": 2
+          }
+        }
+      },
+      "n8nConfig": {
+        "nodeType": "HTTP Request",
+        "method": "POST",
+        "url": "{{$env.FPA_API_URL}}/api/webhooks/n8n/variance-alert",
+        "headers": {
+          "X-N8N-Signature": "sha256={{$crypto.createHmac('sha256', $env.N8N_WEBHOOK_SECRET).update($json).digest('hex')}}",
+          "Content-Type": "application/json"
+        }
+      }
+    },
+    {
+      "name": "Sync Complete Webhook",
+      "method": "POST",
+      "path": "/api/webhooks/n8n/sync-complete",
+      "description": "Receives sync completion notifications and triggers dependent workflows",
+      "authentication": "X-N8N-Signature (HMAC)",
+      "requestBody": {
+        "organizationId": "uuid (required)",
+        "syncType": "string (required)",
+        "status": "completed|failed|partial (required)",
+        "recordsProcessed": "number (optional)",
+        "metadata": "object (optional)"
+      },
+      "response": {
+        "200": {
+          "example": {
+            "success": true,
+            "syncLogId": "uuid",
+            "dependentWorkflows": {
+              "triggered": 1,
+              "successful": 1
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Health Check",
+      "method": "GET",
+      "path": "/api/webhooks/n8n/health",
+      "description": "Comprehensive health check for all integrations",
+      "authentication": "X-API-Key",
+      "parameters": [
+        {
+          "name": "detailed",
+          "in": "query",
+          "type": "boolean",
+          "default": "false"
+        },
+        {
+          "name": "components",
+          "in": "query",
+          "type": "string",
+          "description": "Comma-separated: database,redis,monday,quickbooks"
+        }
+      ],
+      "response": {
+        "200": {
+          "example": {
+            "success": true,
+            "healthy": true,
+            "components": {
+              "total": 4,
+              "healthy": 4,
+              "unhealthy": 0
+            }
+          }
+        },
+        "503": {
+          "description": "Service degraded - one or more components unhealthy"
+        }
+      }
+    }
+  ],
+  "workflows": {
+    "tokenRefresh": {
+      "name": "QuickBooks Token Refresh",
+      "schedule": "Every 45 minutes",
+      "description": "Check and refresh QuickBooks tokens before expiry",
+      "steps": [
+        "GET /api/organizations/active",
+        "Filter orgs where tokenExpiresAt < now + 15 minutes",
+        "POST /api/auth/quickbooks/refresh for each"
+      ]
+    },
+    "varianceCalculation": {
+      "name": "Daily Variance Calculation",
+      "schedule": "Daily at 8:00 AM",
+      "description": "Calculate variances for all active organizations",
+      "steps": [
+        "GET /api/organizations/active",
+        "POST /api/sync/quickbooks for each org",
+        "POST /api/variance/calculate-full for each org",
+        "Webhook: POST /api/webhooks/n8n/variance-alert for critical variances"
+      ]
+    },
+    "monthlyReports": {
+      "name": "Monthly Report Generation",
+      "schedule": "1st of month at 9:00 AM",
+      "description": "Generate and email monthly reports",
+      "steps": [
+        "GET /api/organizations/all?active=true",
+        "POST /api/reports/monthly for each org",
+        "Send PDF via email",
+        "POST /api/reports/log to track delivery"
+      ]
+    }
+  },
+  "errorCodes": {
+    "400": "Bad Request - Missing or invalid parameters",
+    "401": "Unauthorized - Invalid or missing API key",
+    "403": "Forbidden - Organization inactive or insufficient permissions",
+    "404": "Not Found - Organization or resource not found",
+    "429": "Too Many Requests - Rate limit exceeded (100 req/min)",
+    "500": "Internal Server Error - Server-side error occurred"
+  },
+  "rateLimiting": {
+    "default": "100 requests per minute per IP/API key",
+    "healthCheck": "No rate limiting",
+    "headers": {
+      "X-RateLimit-Limit": "Maximum requests allowed",
+      "X-RateLimit-Remaining": "Requests remaining in window",
+      "X-RateLimit-Reset": "Unix timestamp when limit resets",
+      "Retry-After": "Seconds to wait before retry (429 only)"
+    }
+  },
+  "webhookSecurity": {
+    "signatureHeader": "X-N8N-Signature",
+    "algorithm": "HMAC-SHA256",
+    "format": "sha256=<hex_digest>",
+    "secret": "N8N_WEBHOOK_SECRET environment variable",
+    "validation": "Compare HMAC of request body with signature header using timing-safe comparison"
+  },
+  "examples": {
+    "curl": {
+      "getOrganizations": "curl -H \"X-API-Key: YOUR_KEY\" http://localhost:3000/api/organizations/active",
+      "syncQuickBooks": "curl -X POST -H \"X-API-Key: YOUR_KEY\" -H \"Content-Type: application/json\" -d '{\"organizationId\":\"uuid\",\"period\":\"2025-10\"}' http://localhost:3000/api/sync/quickbooks",
+      "calculateVariance": "curl -X POST -H \"X-API-Key: YOUR_KEY\" -H \"Content-Type: application/json\" -d '{\"organizationId\":\"uuid\",\"boardId\":123456,\"period\":\"2025-10\"}' http://localhost:3000/api/variance/calculate-full"
+    }
+  }
+}
