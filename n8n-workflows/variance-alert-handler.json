@@ -1,0 +1,376 @@
+{
+  "name": "Variance Alert Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "variance-alert",
+        "options": {
+          "responseMode": "onReceived"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "variance-alert"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.body.variancePercent }}",
+              "operation": "largerEqual",
+              "value2": 15
+            }
+          ]
+        }
+      },
+      "id": "check-critical",
+      "name": "Check Critical (>15%)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.body.variancePercent }}",
+              "operation": "largerEqual",
+              "value2": 10
+            }
+          ]
+        }
+      },
+      "id": "check-warning",
+      "name": "Check Warning (>10%)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@fpacommand.com",
+        "toEmail": "={{ $json.body.billingEmail || 'admin@fpacommand.com' }}",
+        "subject": "🚨 CRITICAL: {{ $json.body.organizationName }} - Variance Alert",
+        "text": "CRITICAL VARIANCE DETECTED\n\nOrganization: {{ $json.body.organizationName }}\nAccount: {{ $json.body.accountName }} ({{ $json.body.accountCode }})\nPeriod: {{ $json.body.period }}\n\nBudget: ${{ $json.body.budgetAmount }}\nActual: ${{ $json.body.actualAmount }}\nVariance: ${{ $json.body.variance }} ({{ $json.body.variancePercent }}%)\n\nSeverity: CRITICAL\n\nThis variance exceeds the 15% critical threshold and requires immediate attention.\n\nView details: https://app.fpacommand.com/variance/{{ $json.body.organizationId }}\n\n---\nFP&A Command Automated Alert System",
+        "options": {
+          "allowUnauthorizedCerts": false
+        }
+      },
+      "id": "send-critical-email",
+      "name": "Send Critical Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [850, 200],
+      "credentials": {
+        "smtp": {
+          "id": "1",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@fpacommand.com",
+        "toEmail": "={{ $json.body.billingEmail || 'admin@fpacommand.com' }}",
+        "subject": "⚠️ WARNING: {{ $json.body.organizationName }} - Variance Alert",
+        "text": "WARNING: VARIANCE DETECTED\n\nOrganization: {{ $json.body.organizationName }}\nAccount: {{ $json.body.accountName }} ({{ $json.body.accountCode }})\nPeriod: {{ $json.body.period }}\n\nBudget: ${{ $json.body.budgetAmount }}\nActual: ${{ $json.body.actualAmount }}\nVariance: ${{ $json.body.variance }} ({{ $json.body.variancePercent }}%)\n\nSeverity: WARNING\n\nThis variance exceeds the 10% warning threshold. Please review.\n\nView details: https://app.fpacommand.com/variance/{{ $json.body.organizationId }}\n\n---\nFP&A Command Automated Alert System",
+        "options": {
+          "allowUnauthorizedCerts": false
+        }
+      },
+      "id": "send-warning-email",
+      "name": "Send Warning Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [850, 400],
+      "credentials": {
+        "smtp": {
+          "id": "1",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "channel": "#finance-alerts",
+        "text": "🚨 *CRITICAL VARIANCE ALERT*\n\n*Organization:* {{ $json.body.organizationName }}\n*Account:* {{ $json.body.accountName }}\n*Variance:* ${{ $json.body.variance }} ({{ $json.body.variancePercent }}%)\n*Period:* {{ $json.body.period }}\n\n:chart_with_upwards_trend: <https://app.fpacommand.com/variance/{{ $json.body.organizationId }}|View Details>",
+        "otherOptions": {
+          "username": "FP&A Alert Bot"
+        }
+      },
+      "id": "send-slack-critical",
+      "name": "Send Slack (Critical Only)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [1050, 200],
+      "credentials": {
+        "slackApi": {
+          "id": "1",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://app.fpacommand.com/api/alerts/log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "organizationId",
+              "value": "={{ $json.body.organizationId }}"
+            },
+            {
+              "name": "severity",
+              "value": "critical"
+            },
+            {
+              "name": "accountName",
+              "value": "={{ $json.body.accountName }}"
+            },
+            {
+              "name": "accountCode",
+              "value": "={{ $json.body.accountCode }}"
+            },
+            {
+              "name": "budgetAmount",
+              "value": "={{ $json.body.budgetAmount }}"
+            },
+            {
+              "name": "actualAmount",
+              "value": "={{ $json.body.actualAmount }}"
+            },
+            {
+              "name": "variance",
+              "value": "={{ $json.body.variance }}"
+            },
+            {
+              "name": "variancePercent",
+              "value": "={{ $json.body.variancePercent }}"
+            },
+            {
+              "name": "period",
+              "value": "={{ $json.body.period }}"
+            },
+            {
+              "name": "boardId",
+              "value": "={{ $json.body.boardId }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.body.accountName }} is {{ $json.body.variancePercent }}% over budget"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-critical-alert",
+      "name": "Log Critical Alert to DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://app.fpacommand.com/api/alerts/log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "organizationId",
+              "value": "={{ $json.body.organizationId }}"
+            },
+            {
+              "name": "severity",
+              "value": "warning"
+            },
+            {
+              "name": "accountName",
+              "value": "={{ $json.body.accountName }}"
+            },
+            {
+              "name": "accountCode",
+              "value": "={{ $json.body.accountCode }}"
+            },
+            {
+              "name": "budgetAmount",
+              "value": "={{ $json.body.budgetAmount }}"
+            },
+            {
+              "name": "actualAmount",
+              "value": "={{ $json.body.actualAmount }}"
+            },
+            {
+              "name": "variance",
+              "value": "={{ $json.body.variance }}"
+            },
+            {
+              "name": "variancePercent",
+              "value": "={{ $json.body.variancePercent }}"
+            },
+            {
+              "name": "period",
+              "value": "={{ $json.body.period }}"
+            },
+            {
+              "name": "boardId",
+              "value": "={{ $json.body.boardId }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.body.accountName }} is {{ $json.body.variancePercent }}% over budget"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "log-warning-alert",
+      "name": "Log Warning Alert to DB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1050, 400]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@fpacommand.com",
+        "toEmail": "admin@fpacommand.com",
+        "subject": "❌ Variance Alert Handler Error",
+        "text": "Error processing variance alert:\n\n{{ $json.error.message }}\n\nTimestamp: {{ $now }}\nOrganization: {{ $json.body.organizationId }}\n\nPlease investigate immediately.",
+        "options": {}
+      },
+      "id": "error-notification",
+      "name": "Error Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [850, 600],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Critical (>15%)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Critical (>15%)": {
+      "main": [
+        [
+          {
+            "node": "Send Critical Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Check Warning (>10%)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Warning (>10%)": {
+      "main": [
+        [
+          {
+            "node": "Send Warning Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Critical Email": {
+      "main": [
+        [
+          {
+            "node": "Send Slack (Critical Only)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Slack (Critical Only)": {
+      "main": [
+        [
+          {
+            "node": "Log Critical Alert to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Warning Email": {
+      "main": [
+        [
+          {
+            "node": "Log Warning Alert to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "error-notification"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-10-03T00:00:00.000Z",
+      "updatedAt": "2025-10-03T00:00:00.000Z",
+      "id": "1",
+      "name": "finance"
+    },
+    {
+      "createdAt": "2025-10-03T00:00:00.000Z",
+      "updatedAt": "2025-10-03T00:00:00.000Z",
+      "id": "2",
+      "name": "alerts"
+    }
+  ],
+  "pinData": {},
+  "versionId": "1",
+  "triggerCount": 1,
+  "active": true
+}

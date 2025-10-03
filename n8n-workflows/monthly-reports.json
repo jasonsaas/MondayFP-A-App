@@ -1,0 +1,590 @@
+{
+  "name": "Monthly Report Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 23 L * *"
+            }
+          ]
+        }
+      },
+      "id": "monthly-trigger",
+      "name": "Last Day of Month 11 PM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300],
+      "note": "Runs at 11:00 PM on the last day of each month"
+    },
+    {
+      "parameters": {
+        "url": "https://app.fpacommand.com/api/organizations/all?active=true",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-all-orgs",
+      "name": "Get All Organizations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "org-data",
+              "name": "organizations",
+              "value": "={{ $json.data }}",
+              "type": "array"
+            },
+            {
+              "id": "report-period",
+              "name": "period",
+              "value": "={{ $now.minus({ days: 1 }).toFormat('yyyy-MM') }}",
+              "type": "string"
+            },
+            {
+              "id": "report-month",
+              "name": "monthName",
+              "value": "={{ $now.minus({ days: 1 }).toFormat('MMMM yyyy') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "prepare-report-data",
+      "name": "Prepare Report Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-organizations",
+      "name": "Loop Through Organizations",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.billingEmail }}",
+              "operation": "isNotEmpty"
+            }
+          ],
+          "boolean": [
+            {
+              "value1": "={{ $json.active }}",
+              "operation": "true"
+            }
+          ]
+        }
+      },
+      "id": "check-billing-email",
+      "name": "Has Billing Email?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://app.fpacommand.com/api/reports/monthly",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"organizationId\": \"{{ $json.id }}\",\n  \"period\": \"{{ $('Prepare Report Data').item.json.period }}\",\n  \"includeCharts\": true,\n  \"includeInsights\": true\n}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "generate-report",
+      "name": "Generate Monthly Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 250]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.success }}",
+              "operation": "true"
+            }
+          ]
+        }
+      },
+      "id": "check-report-success",
+      "name": "Report Generated Successfully?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1450, 250]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate PDF-style text report from data\nconst data = $json.reportData;\nconst org = data.organization;\nconst summary = data.summary;\n\nlet report = `\n═══════════════════════════════════════════════════════════\n                    MONTHLY VARIANCE REPORT\n                         ${org.name}\n                      ${org.period}\n═══════════════════════════════════════════════════════════\n\nEXECUTIVE SUMMARY\n─────────────────────────────────────────────────────────\n\nTotal Budget:        $${summary.totalBudget.toLocaleString()}\nTotal Actual:        $${summary.totalActual.toLocaleString()}\nTotal Variance:      $${summary.totalVariance.toLocaleString()} (${summary.totalVariancePercent}%)\n\nVariance Breakdown:\n  🔴 Critical (>15%): ${summary.criticalCount}\n  🟡 Warning (>10%):  ${summary.warningCount}\n  🟢 Normal (<10%):   ${summary.normalCount}\n\n`;\n\n// Add top variances\nif (data.variances && data.variances.length > 0) {\n  report += `\\nTOP VARIANCES\\n─────────────────────────────────────────────────────────\\n\\n`;\n  \n  const topVariances = data.variances\n    .sort((a, b) => Math.abs(b.variancePercent) - Math.abs(a.variancePercent))\n    .slice(0, 10);\n  \n  topVariances.forEach((v, i) => {\n    const emoji = Math.abs(v.variancePercent) >= 15 ? '🔴' : Math.abs(v.variancePercent) >= 10 ? '🟡' : '🟢';\n    report += `${i + 1}. ${emoji} ${v.accountName}\\n`;\n    report += `   Budget: $${v.budget.toLocaleString()}\\n`;\n    report += `   Actual: $${v.actual.toLocaleString()}\\n`;\n    report += `   Variance: $${v.variance.toLocaleString()} (${v.variancePercent}%)\\n\\n`;\n  });\n}\n\n// Add insights\nif (data.insights && data.insights.length > 0) {\n  report += `\\nKEY INSIGHTS\\n─────────────────────────────────────────────────────────\\n\\n`;\n  data.insights.forEach((insight, i) => {\n    report += `${i + 1}. ${insight}\\n\\n`;\n  });\n}\n\nreport += `\\n═══════════════════════════════════════════════════════════\\nGenerated: ${org.generatedAt}\\nFP&A Command - Variance Analysis Platform\\nhttps://app.fpacommand.com\\n═══════════════════════════════════════════════════════════\\n`;\n\nreturn {\n  json: {\n    ...data,\n    reportText: report,\n    fileName: `${org.name.replace(/[^a-zA-Z0-9]/g, '_')}_Report_${org.period}.txt`\n  }\n};"
+      },
+      "id": "format-report",
+      "name": "Format Report for Email",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1650, 200]
+    },
+    {
+      "parameters": {
+        "fromEmail": "reports@fpacommand.com",
+        "toEmail": "={{ $('Loop Through Organizations').item.json.billingEmail }}",
+        "subject": "📊 Monthly Variance Report - {{ $json.organization.name }} - {{ $('Prepare Report Data').item.json.monthName }}",
+        "text": "Dear Finance Team,\n\nPlease find attached your monthly variance analysis report for {{ $('Prepare Report Data').item.json.monthName }}.\n\n{{ $json.reportText }}\n\nYou can also view this report online at:\nhttps://app.fpacommand.com/reports/{{ $('Loop Through Organizations').item.json.id }}\n\nIf you have any questions about this report, please contact our support team.\n\nBest regards,\nFP&A Command Team",
+        "options": {
+          "allowUnauthorizedCerts": false,
+          "ccEmail": "={{ $('Loop Through Organizations').item.json.settings?.reportCcEmails || '' }}",
+          "attachments": "reportText={{ $json.fileName }}"
+        }
+      },
+      "id": "send-report-email",
+      "name": "Send Report Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1850, 200],
+      "credentials": {
+        "smtp": {
+          "id": "1",
+          "name": "SMTP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "file",
+        "operation": "upload",
+        "boardId": "={{ $('Loop Through Organizations').item.json.mondayBoardId }}",
+        "columnId": "files",
+        "binaryPropertyName": "data",
+        "additionalFields": {
+          "fileName": "={{ $json.fileName }}"
+        }
+      },
+      "id": "upload-to-monday",
+      "name": "Upload to Monday.com",
+      "type": "n8n-nodes-base.mondayCom",
+      "typeVersion": 1,
+      "position": [2050, 200],
+      "credentials": {
+        "mondayComApi": {
+          "id": "1",
+          "name": "Monday.com account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "https://app.fpacommand.com/api/reports/log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"organizationId\": \"{{ $('Loop Through Organizations').item.json.id }}\",\n  \"reportType\": \"monthly\",\n  \"period\": \"{{ $('Prepare Report Data').item.json.period }}\",\n  \"status\": \"sent\",\n  \"sentTo\": [\"{{ $('Loop Through Organizations').item.json.billingEmail }}\"],\n  \"fileSize\": {{ $json.reportText.length }},\n  \"boardIds\": [{{ $('Loop Through Organizations').item.json.mondayBoardId }}],\n  \"includeCharts\": true,\n  \"includeInsights\": true\n}",
+        "options": {}
+      },
+      "id": "log-report",
+      "name": "Log Report Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2250, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://app.fpacommand.com/api/reports/log",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"organizationId\": \"{{ $('Loop Through Organizations').item.json.id }}\",\n  \"reportType\": \"monthly\",\n  \"period\": \"{{ $('Prepare Report Data').item.json.period }}\",\n  \"status\": \"failed\",\n  \"errorMessage\": \"{{ $json.error || 'Report generation failed' }}\",\n  \"includeCharts\": true,\n  \"includeInsights\": true\n}",
+        "options": {}
+      },
+      "id": "log-failure",
+      "name": "Log Report Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1650, 350]
+    },
+    {
+      "parameters": {
+        "fromEmail": "reports@fpacommand.com",
+        "toEmail": "admin@fpacommand.com",
+        "subject": "❌ Report Generation Failed - {{ $('Loop Through Organizations').item.json.name }}",
+        "text": "Failed to generate monthly report for organization:\n\nOrganization: {{ $('Loop Through Organizations').item.json.name }}\nOrganization ID: {{ $('Loop Through Organizations').item.json.id }}\nPeriod: {{ $('Prepare Report Data').item.json.period }}\nTimestamp: {{ $now }}\n\nError:\n{{ $json.error || 'Unknown error' }}\n\nPlease investigate and retry manually.",
+        "options": {}
+      },
+      "id": "failure-notification",
+      "name": "Send Failure Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1850, 350],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "id": "merge-back",
+      "name": "Merge Back to Loop",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [2450, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Count successful and failed reports\nconst items = $input.all();\nconst totalOrgs = items.length;\nconst successful = items.filter(i => i.json.status !== 'failed').length;\nconst failed = totalOrgs - successful;\n\nreturn {\n  json: {\n    period: $('Prepare Report Data').item.json.period,\n    monthName: $('Prepare Report Data').item.json.monthName,\n    totalOrganizations: totalOrgs,\n    successfulReports: successful,\n    failedReports: failed,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "compile-summary",
+      "name": "Compile Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2650, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "reports@fpacommand.com",
+        "toEmail": "admin@fpacommand.com",
+        "subject": "✅ Monthly Reports Completed - {{ $json.monthName }}",
+        "text": "Monthly report generation completed!\n\nPeriod: {{ $json.monthName }} ({{ $json.period }})\nTotal Organizations: {{ $json.totalOrganizations }}\nSuccessful Reports: {{ $json.successfulReports }}\nFailed Reports: {{ $json.failedReports }}\n\nTimestamp: {{ $json.timestamp }}\n\nAll reports have been sent to organization billing contacts and uploaded to Monday.com.\n\n---\nFP&A Command Report Generator",
+        "options": {}
+      },
+      "id": "completion-summary",
+      "name": "Send Completion Summary",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [2850, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "reports@fpacommand.com",
+        "toEmail": "admin@fpacommand.com",
+        "subject": "⚠️ Critical Error in Monthly Report Workflow",
+        "text": "A critical error occurred in the Monthly Report Generator workflow:\n\nError: {{ $json.error.message }}\nTimestamp: {{ $now }}\nNode: {{ $json.error.node }}\n\nThe workflow has been halted. Please investigate immediately.",
+        "options": {}
+      },
+      "id": "workflow-error",
+      "name": "Workflow Error Handler",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1250, 550],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "fromEmail": "reports@fpacommand.com",
+        "toEmail": "admin@fpacommand.com",
+        "subject": "⚠️ Organization Skipped - No Billing Email",
+        "text": "Organization skipped during monthly report generation:\n\nOrganization: {{ $json.name }}\nOrganization ID: {{ $json.id }}\nReason: No billing email configured\n\nPeriod: {{ $('Prepare Report Data').item.json.period }}\n\nPlease update the organization settings to include a billing email.",
+        "options": {}
+      },
+      "id": "skipped-notification",
+      "name": "Skipped Organization Notice",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1250, 400],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Last Day of Month 11 PM": {
+      "main": [
+        [
+          {
+            "node": "Get All Organizations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Organizations": {
+      "main": [
+        [
+          {
+            "node": "Prepare Report Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Report Data": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Organizations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Through Organizations": {
+      "main": [
+        [
+          {
+            "node": "Has Billing Email?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Compile Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Billing Email?": {
+      "main": [
+        [
+          {
+            "node": "Generate Monthly Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skipped Organization Notice",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Monthly Report": {
+      "main": [
+        [
+          {
+            "node": "Report Generated Successfully?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Report Generated Successfully?": {
+      "main": [
+        [
+          {
+            "node": "Format Report for Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Report Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Report for Email": {
+      "main": [
+        [
+          {
+            "node": "Send Report Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Report Email": {
+      "main": [
+        [
+          {
+            "node": "Upload to Monday.com",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload to Monday.com": {
+      "main": [
+        [
+          {
+            "node": "Log Report Generation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Report Generation": {
+      "main": [
+        [
+          {
+            "node": "Merge Back to Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Report Failure": {
+      "main": [
+        [
+          {
+            "node": "Send Failure Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Failure Notification": {
+      "main": [
+        [
+          {
+            "node": "Merge Back to Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skipped Organization Notice": {
+      "main": [
+        [
+          {
+            "node": "Merge Back to Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Back to Loop": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Organizations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compile Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Completion Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "workflow-error",
+    "timezone": "America/New_York",
+    "executionTimeout": 7200,
+    "maxExecutionTime": 7200
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-10-03T00:00:00.000Z",
+      "updatedAt": "2025-10-03T00:00:00.000Z",
+      "id": "1",
+      "name": "finance"
+    },
+    {
+      "createdAt": "2025-10-03T00:00:00.000Z",
+      "updatedAt": "2025-10-03T00:00:00.000Z",
+      "id": "5",
+      "name": "reports"
+    },
+    {
+      "createdAt": "2025-10-03T00:00:00.000Z",
+      "updatedAt": "2025-10-03T00:00:00.000Z",
+      "id": "6",
+      "name": "monthly"
+    }
+  ],
+  "pinData": {},
+  "versionId": "1",
+  "triggerCount": 1,
+  "active": true
+}

@@ -1,0 +1,561 @@
+{
+  "name": "QuickBooks Sync & Variance Calculator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "cron-trigger",
+      "name": "Every 15 Minutes",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://app.fpacommand.com/api/organizations/active",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "id": "get-active-orgs",
+      "name": "Get Active Organizations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "org-data",
+              "name": "organizations",
+              "value": "={{ $json.data }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-orgs",
+      "name": "Extract Organizations",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-orgs",
+      "name": "Loop Through Organizations",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "dateTime": [
+            {
+              "value1": "={{ $json.quickbooksTokenExpiresAt }}",
+              "operation": "before",
+              "value2": "={{ $now.plus({ hours: 1 }).toISO() }}"
+            }
+          ]
+        }
+      },
+      "id": "check-token-expiry",
+      "name": "Check Token Expires < 1hr",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://app.fpacommand.com/api/auth/quickbooks/refresh",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"organizationId\": \"{{ $json.id }}\"\n}",
+        "options": {}
+      },
+      "id": "refresh-token",
+      "name": "Refresh QuickBooks Token",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wait 2 seconds after token refresh\nawait new Promise(resolve => setTimeout(resolve, 2000));\nreturn $input.all();"
+      },
+      "id": "wait-after-refresh",
+      "name": "Wait 2s",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "url": "https://app.fpacommand.com/api/sync/quickbooks",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"organizationId\": \"{{ $json.id }}\",\n  \"period\": \"{{ $now.toFormat('yyyy-MM') }}\"\n}",
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "id": "sync-quickbooks",
+      "name": "Sync QuickBooks Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1650, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.success }}",
+              "operation": "equals",
+              "value2": "true"
+            }
+          ]
+        }
+      },
+      "id": "check-sync-success",
+      "name": "Check Sync Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1850, 300]
+    },
+    {
+      "parameters": {
+        "url": "https://app.fpacommand.com/api/variance/calculate-full",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={\n  \"organizationId\": \"{{ $json.organizationId }}\",\n  \"period\": \"{{ $now.toFormat('yyyy-MM') }}\",\n  \"updateMonday\": true,\n  \"generateInsights\": true\n}",
+        "options": {
+          "timeout": 90000
+        }
+      },
+      "id": "calculate-variance",
+      "name": "Calculate Variance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2050, 250]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check for critical variances (>15%)\nconst variances = $json.variances || [];\nconst critical = variances.filter(v => Math.abs(v.variancePercent) >= 15);\n\nreturn critical.map(variance => ({\n  json: {\n    organizationId: $json.organizationId,\n    organizationName: $json.organizationName,\n    accountName: variance.accountName,\n    accountCode: variance.accountCode,\n    budgetAmount: variance.budget,\n    actualAmount: variance.actual,\n    variance: variance.variance,\n    variancePercent: variance.variancePercent,\n    period: $json.period,\n    boardId: variance.boardId,\n    billingEmail: $('Get Active Organizations').item.json.billingEmail\n  }\n}));"
+      },
+      "id": "check-critical-variances",
+      "name": "Check Critical Variances",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2250, 250]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.length }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "id": "has-critical-variances",
+      "name": "Has Critical Variances?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [2450, 250]
+    },
+    {
+      "parameters": {
+        "url": "https://app.fpacommand.com/api/webhooks/n8n/variance-alert",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "trigger-variance-alert",
+      "name": "Trigger Variance Alert Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2650, 200]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@fpacommand.com",
+        "toEmail": "admin@fpacommand.com",
+        "subject": "❌ QuickBooks Sync Error - {{ $json.organizationName }}",
+        "text": "QuickBooks sync failed for organization:\n\nOrganization: {{ $json.organizationName }}\nOrganization ID: {{ $json.id }}\nTimestamp: {{ $now }}\n\nError Details:\n{{ $json.error || 'Sync returned unsuccessful status' }}\n\nPlease investigate and retry manually if necessary.",
+        "options": {}
+      },
+      "id": "sync-error-notification",
+      "name": "Sync Error Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [2050, 400],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "id": "merge-back-to-loop",
+      "name": "Merge Back to Loop",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [2850, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@fpacommand.com",
+        "toEmail": "admin@fpacommand.com",
+        "subject": "✅ QuickBooks Sync Completed - {{ $now.toFormat('yyyy-MM-dd HH:mm') }}",
+        "text": "QuickBooks sync completed successfully.\n\nTotal Organizations Processed: {{ $json.count }}\nTimestamp: {{ $now }}\n\nAll organizations have been synced and variance calculations completed.",
+        "options": {}
+      },
+      "id": "completion-notification",
+      "name": "Completion Notification",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [3050, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "alerts@fpacommand.com",
+        "toEmail": "admin@fpacommand.com",
+        "subject": "⚠️ Critical Error in QuickBooks Sync Workflow",
+        "text": "A critical error occurred in the QuickBooks Sync workflow:\n\nError: {{ $json.error.message }}\nTimestamp: {{ $now }}\nNode: {{ $json.error.node }}\n\nThe workflow has been halted. Please investigate immediately.",
+        "options": {}
+      },
+      "id": "workflow-error-handler",
+      "name": "Workflow Error Handler",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1050, 600],
+      "onError": "continueRegularOutput"
+    }
+  ],
+  "connections": {
+    "Every 15 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Active Organizations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Organizations": {
+      "main": [
+        [
+          {
+            "node": "Extract Organizations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Organizations": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Organizations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Through Organizations": {
+      "main": [
+        [
+          {
+            "node": "Check Token Expires < 1hr",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Completion Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Token Expires < 1hr": {
+      "main": [
+        [
+          {
+            "node": "Refresh QuickBooks Token",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sync QuickBooks Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Refresh QuickBooks Token": {
+      "main": [
+        [
+          {
+            "node": "Wait 2s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 2s": {
+      "main": [
+        [
+          {
+            "node": "Sync QuickBooks Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync QuickBooks Data": {
+      "main": [
+        [
+          {
+            "node": "Check Sync Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Sync Success": {
+      "main": [
+        [
+          {
+            "node": "Calculate Variance",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sync Error Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculate Variance": {
+      "main": [
+        [
+          {
+            "node": "Check Critical Variances",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Critical Variances": {
+      "main": [
+        [
+          {
+            "node": "Has Critical Variances?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Critical Variances?": {
+      "main": [
+        [
+          {
+            "node": "Trigger Variance Alert Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Back to Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Variance Alert Workflow": {
+      "main": [
+        [
+          {
+            "node": "Merge Back to Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Error Notification": {
+      "main": [
+        [
+          {
+            "node": "Merge Back to Loop",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Back to Loop": {
+      "main": [
+        [
+          {
+            "node": "Loop Through Organizations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "workflow-error-handler",
+    "timezone": "America/New_York",
+    "executionTimeout": 3600,
+    "maxExecutionTime": 3600
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "createdAt": "2025-10-03T00:00:00.000Z",
+      "updatedAt": "2025-10-03T00:00:00.000Z",
+      "id": "1",
+      "name": "finance"
+    },
+    {
+      "createdAt": "2025-10-03T00:00:00.000Z",
+      "updatedAt": "2025-10-03T00:00:00.000Z",
+      "id": "3",
+      "name": "quickbooks"
+    },
+    {
+      "createdAt": "2025-10-03T00:00:00.000Z",
+      "updatedAt": "2025-10-03T00:00:00.000Z",
+      "id": "4",
+      "name": "automation"
+    }
+  ],
+  "pinData": {},
+  "versionId": "1",
+  "triggerCount": 1,
+  "active": true
+}
