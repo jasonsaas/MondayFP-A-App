@@ -1,13 +1,34 @@
-# Monday.com FP&A Variance Analyzer
+# 🎯 FP&A Variance Analyzer - Production Ready MVP
 
-A Next.js marketplace application that integrates Monday.com boards with QuickBooks for automated financial variance analysis.
+> Automated variance analysis between QuickBooks actuals and Monday.com budgets
 
-## Features
+**Status:** ✅ Production Ready | 🚀 Ready to Deploy
 
-- **Monday OAuth 2.0**: Secure single sign-on with Monday.com workspace
-- **Multi-tenant Architecture**: Organization-based data isolation
-- **Monday.com Integration**: Fetch budget data from Monday.com boards
-- **QuickBooks Integration**: Pull actual transaction data from QuickBooks
+## 🚀 Quick Deploy to Production
+
+Since your GitHub repo is connected to Vercel, just run:
+
+```bash
+rm -rf .github/workflows
+git add .
+git commit -m "Complete MVP: Production ready variance analyzer"
+git push origin main
+```
+
+**Vercel auto-deploys when you push!**
+
+Then follow **[PUSH_TO_PRODUCTION.md](./PUSH_TO_PRODUCTION.md)** for environment setup.
+
+## ✨ What You Get
+
+- ✅ **Automated Sync** - Every 4 hours via Vercel Cron
+- ✅ **Monday.com Integration** - OAuth + budget data fetch
+- ✅ **QuickBooks Integration** - OAuth + actual expenses
+- ✅ **Variance Calculation** - Budget vs Actual with severity
+- ✅ **Real-time Dashboard** - Live KPIs and data table
+- ✅ **Setup Wizard** - 3-step connection flow
+- ✅ **Manual Sync Button** - On-demand refresh
+- ✅ **NO n8n Required** - Pure Next.js solution
 - **Variance Analysis Engine**: Calculate variances, identify trends, and generate actionable insights
 - **n8n Workflow Automation**: Webhook-based integration for automated syncing
 - **Modern UI**: Built with Vibe Design System (@vibe/core) and Tailwind CSS
