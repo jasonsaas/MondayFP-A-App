@@ -7,46 +7,36 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { syncOrchestrator } from '@/lib/sync/sync-orchestrator';
-import { db } from '@/lib/db';
-import { users } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { getAuthUser } from '@/lib/api-auth';
 
 export async function POST(request: NextRequest) {
   try {
-    // Get user from session/auth
-    // For MVP, we'll use a simple header-based auth
-    const userId = request.headers.get('x-user-id');
+    // Get authenticated user
+    const user = await getAuthUser(request);
 
-    if (!userId) {
+    if (!user) {
       return NextResponse.json(
         {
           success: false,
           error: 'Unauthorized',
-          message: 'User ID required',
+          message: 'Authentication required',
         },
         { status: 401 }
       );
     }
 
-    // Get user's organization
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!user || !user.organizationId) {
+    if (!user.organizationId) {
       return NextResponse.json(
         {
           success: false,
           error: 'Not Found',
-          message: 'User or organization not found',
+          message: 'Organization not found',
         },
         { status: 404 }
       );
     }
 
-    console.log(`🔄 Manual sync triggered by user ${userId} for org ${user.organizationId}`);
+    console.log(`🔄 Manual sync triggered by user ${user.id} for org ${user.organizationId}`);
 
     // Run sync
     const result = await syncOrchestrator.syncOrganization(user.organizationId);
@@ -91,22 +81,16 @@ export async function POST(request: NextRequest) {
 // GET method to check sync status
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id');
+    const user = await getAuthUser(request);
 
-    if (!userId) {
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!user || !user.organizationId) {
+    if (!user.organizationId) {
       return NextResponse.json(
         { success: false, error: 'Not found' },
         { status: 404 }

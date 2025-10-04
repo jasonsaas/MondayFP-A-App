@@ -7,30 +7,24 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { users, organizations } from '@/lib/db/schema';
+import { organizations } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { getAuthUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = request.headers.get('x-user-id');
+    const user = await getAuthUser(request);
 
-    if (!userId) {
+    if (!user) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
 
-    // Get user and organization
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!user || !user.organizationId) {
+    if (!user.organizationId) {
       return NextResponse.json(
-        { success: false, error: 'User or organization not found' },
+        { success: false, error: 'Organization not found' },
         { status: 404 }
       );
     }

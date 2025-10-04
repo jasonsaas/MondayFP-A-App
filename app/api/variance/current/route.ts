@@ -8,39 +8,33 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { users, varianceSnapshots } from '@/lib/db/schema';
+import { varianceSnapshots } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { syncOrchestrator } from '@/lib/sync/sync-orchestrator';
+import { getAuthUser } from '@/lib/api-auth';
 
 export async function GET(request: NextRequest) {
   try {
-    // Get user from session
-    const userId = request.headers.get('x-user-id');
+    // Get authenticated user
+    const user = await getAuthUser(request);
 
-    if (!userId) {
+    if (!user) {
       return NextResponse.json(
         {
           success: false,
           error: 'Unauthorized',
-          message: 'User ID required',
+          message: 'Authentication required',
         },
         { status: 401 }
       );
     }
 
-    // Get user's organization
-    const [user] = await db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-
-    if (!user || !user.organizationId) {
+    if (!user.organizationId) {
       return NextResponse.json(
         {
           success: false,
           error: 'Not Found',
-          message: 'User or organization not found',
+          message: 'Organization not found',
         },
         { status: 404 }
       );
